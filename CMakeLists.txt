@@ -89,6 +89,10 @@ spirv_cross_add_library(spirv-cross-core spirv_cross_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/spirv_cfg.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/spirv_cfg.cpp)
 
+spirv_cross_add_library(spirv-cross-c-api spirv_cross_c_api STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/spirv_cross_c_api.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/spirv_cross_c_api.h)
+
 spirv_cross_add_library(spirv-cross-glsl spirv_cross_glsl STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/spirv_glsl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/spirv_glsl.hpp)
