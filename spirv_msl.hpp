@@ -201,21 +201,9 @@ public:
 		}
 	};
 
-	SPIRV_CROSS_DEPRECATED("CompilerMSL::get_options() is obsolete, use get_msl_options() instead.")
-	const Options &get_options() const
-	{
-		return msl_options;
-	}
-
 	const Options &get_msl_options() const
 	{
 		return msl_options;
-	}
-
-	SPIRV_CROSS_DEPRECATED("CompilerMSL::set_options() is obsolete, use set_msl_options() instead.")
-	void set_options(Options &opts)
-	{
-		msl_options = opts;
 	}
 
 	void set_msl_options(const Options &opts)
@@ -295,24 +283,23 @@ public:
 		SPVFuncImplArrayCopyMultidimMax = 6
 	};
 
-	// Constructs an instance to compile the SPIR-V code into Metal Shading Language,
-	// using the configuration parameters, if provided:
-	//  - p_vtx_attrs is an optional list of vertex attribute bindings used to match
-	//    vertex content locations to MSL attributes. If vertex attributes are provided,
-	//    the compiler will set the used_by_shader flag to true in any vertex attribute
-	//    actually used by the MSL code.
-	//  - p_res_bindings is a list of resource bindings to indicate the MSL buffer,
-	//    texture or sampler index to use for a particular SPIR-V description set
-	//    and binding. If resource bindings are provided, the compiler will set the
-	//    used_by_shader flag to true in any resource binding actually used by the MSL code.
-
 	explicit CompilerMSL(std::vector<uint32_t> spirv);
 	CompilerMSL(const uint32_t *ir, size_t word_count);
 	explicit CompilerMSL(const ParsedIR &ir);
 	explicit CompilerMSL(ParsedIR &&ir);
 
-	void set_msl_vertex_attributes(const MSLVertexAttr *p_vtx_attrs, size_t vtx_attrs_count);
-	void set_msl_resource_bindings(const MSLResourceBinding *p_res_bindings, size_t res_binding_counts);
+	// p_vtx_attrs is a list of vertex attribute bindings used to match
+	// vertex content locations to MSL attributes. If vertex attributes are provided,
+	// is_msl_vertex_attribute_used() will return true after calling ::compile() if
+	// the location was used by the MSL code.
+	void add_msl_vertex_attributes(const MSLVertexAttr *p_vtx_attrs, size_t vtx_attrs_count);
+
+	// p_res_bindings is a list of resource bindings to indicate the MSL buffer,
+	// texture or sampler index to use for a particular SPIR-V description set
+	// and binding. If resource bindings are provided,
+	// is_msl_resource_binding_used() will return true after calling ::compile() if
+	// the set/binding combination was used by the MSL code.
+	void add_msl_resource_bindings(const MSLResourceBinding *p_res_bindings, size_t res_binding_counts);
 
 	// Query after compilation is done. This allows you to check if a location or set/binding combination was used by the shader.
 	bool is_msl_vertex_attribute_used(uint32_t location);
