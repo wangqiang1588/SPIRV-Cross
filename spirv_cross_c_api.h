@@ -62,16 +62,16 @@ typedef enum spvc_error
 	SPVC_SUCCESS = 0,
 
 	// The SPIR-V is invalid.
-	SPVC_INVALID_SPIRV = -1,
+	SPVC_ERROR_INVALID_SPIRV = -1,
 
 	// The SPIR-V might be valid, but SPIRV-Cross currently cannot correctly translate this to your target language.
-	SPVC_UNSUPPORTED_SPIRV = -2,
+	SPVC_ERROR_UNSUPPORTED_SPIRV = -2,
 
 	// If for some reason we hit this.
-	SPVC_OUT_OF_MEMORY = -3,
+	SPVC_ERROR_OUT_OF_MEMORY = -3,
 
 	// Invalid API argument.
-	SPVC_INVALID_ARGUMENT = -4,
+	SPVC_ERROR_INVALID_ARGUMENT = -4,
 
 	SPVC_ERROR_INT_MAX = 0x7fffffff
 } spvc_error;
@@ -81,8 +81,8 @@ typedef enum spvc_capture_mode
 	// The Parsed IR will be copied, and the handle can be reused.
 	SPVC_CAPTURE_MODE_COPY = 0,
 
-	// The handle will now be owned by the compiler.
-	// parsed_ir can no longer be used by the caller.
+	// The payload will now be owned by the compiler.
+	// parsed_ir should now be considered a dead blob, and the only thing to do is to destroy it.
 	// This is optimal for performance.
 	SPVC_CAPTURE_MODE_TAKE_OWNERSHIP = 1,
 
