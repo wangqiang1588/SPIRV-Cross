@@ -194,9 +194,9 @@ SPVC_PUBLIC_API void spvc_destroy_compiler(spvc_compiler compiler);
 // Set options.
 SPVC_PUBLIC_API spvc_error spvc_create_compiler_options(spvc_compiler compiler, spvc_compiler_options *options);
 SPVC_PUBLIC_API spvc_error spvc_set_compiler_option_bool(spvc_compiler_options options,
-                                                         spvc_compiler_option, spvc_bool value);
+                                                         spvc_compiler_option option, spvc_bool value);
 SPVC_PUBLIC_API spvc_error spvc_set_compiler_option_uint(spvc_compiler_options options,
-                                                         spvc_compiler_option, unsigned value);
+                                                         spvc_compiler_option option, unsigned value);
 SPVC_PUBLIC_API spvc_error spvc_install_compiler_options(spvc_compiler compiler, spvc_compiler_options options);
 SPVC_PUBLIC_API void spvc_destroy_compiler_options(spvc_compiler_options options);
 
