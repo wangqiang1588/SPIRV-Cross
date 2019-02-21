@@ -201,8 +201,8 @@ SPVC_PUBLIC_API spvc_error spvc_install_compiler_options(spvc_compiler compiler,
 SPVC_PUBLIC_API void spvc_destroy_compiler_options(spvc_compiler_options options);
 
 // Compile IR into a string.
-SPVC_PUBLIC_API spvc_error spvc_compile(spvc_compiler compiler, char **string);
-SPVC_PUBLIC_API void spvc_destroy_string(char *string);
+SPVC_PUBLIC_API spvc_error spvc_compile(spvc_compiler compiler, char **source);
+SPVC_PUBLIC_API void spvc_destroy_string(char *source);
 
 // Reflect resources.
 SPVC_PUBLIC_API spvc_error spvc_create_statically_accessed_shader_resources(spvc_compiler compiler, spvc_resources *resources);
@@ -232,7 +232,7 @@ SPVC_PUBLIC_API const char *spvc_get_member_decoration_string(spvc_compiler comp
                                                               unsigned member_index, SpvDecoration decoration);
 
 // Entry points.
-SPVC_PUBLIC_API spvc_error spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry_points **entry_points, size_t *num_entry_points);
+SPVC_PUBLIC_API spvc_error spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry_point **entry_points, size_t *num_entry_points);
 SPVC_PUBLIC_API spvc_error spvc_set_entry_point(spvc_compiler compiler, const char *name, SpvExecutionModel model);
 
 #ifdef __cplusplus
