@@ -1507,7 +1507,10 @@ void CompilerMSL::add_plain_member_variable_to_interface_block(StorageClass stor
 	}
 	else if (is_builtin && is_tessellation_shader() && vtx_attrs_by_builtin.count(builtin))
 	{
-		uint32_t locn = vtx_attrs_by_builtin[builtin].location;
+		uint32_t locn = 0;
+		auto builtin_itr = vtx_attrs_by_builtin.find(builtin);
+		if (builtin_itr != end(vtx_attrs_by_builtin))
+			locn = builtin_itr->second.location;
 		set_member_decoration(ib_type.self, ib_mbr_idx, DecorationLocation, locn);
 		mark_location_as_used_by_shader(locn, storage);
 	}
