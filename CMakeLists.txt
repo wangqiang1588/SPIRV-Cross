@@ -99,8 +99,8 @@ set(spirv-cross-core-sources
 
 set(spirv-cross-c-sources
 	spirv.h
-	${CMAKE_CURRENT_SOURCE_DIR}/spirv_cross_c_api.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/spirv_cross_c_api.h)
+	${CMAKE_CURRENT_SOURCE_DIR}/spirv_cross_c.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/spirv_cross_c.h)
 
 set(spirv-cross-glsl-sources
 	${CMAKE_CURRENT_SOURCE_DIR}/spirv_glsl.cpp
@@ -166,9 +166,9 @@ if (SPIRV_CROSS_SHARED)
 	set(SPIRV_CROSS_INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
 	set(SPIRV_CROSS_INSTALL_INC_DIR ${CMAKE_INSTALL_PREFIX}/include)
 	configure_file(
-		${CMAKE_CURRENT_SOURCE_DIR}/pkg-config/spirv_cross_c_shared.pc.in
-		${CMAKE_CURRENT_BINARY_DIR}/spirv_cross_c_shared.pc @ONLY)
-	install(FILES ${CMAKE_CURRENT_BINARY_DIR}/spirv_cross_c_shared.pc DESTINATION ${CMAKE_INSTALL_PREFIX}/share/pkgconfig)
+		${CMAKE_CURRENT_SOURCE_DIR}/pkg-config/spirv-cross-c-shared.pc.in
+		${CMAKE_CURRENT_BINARY_DIR}/spirv-cross-c-shared.pc @ONLY)
+	install(FILES ${CMAKE_CURRENT_BINARY_DIR}/spirv-cross-c-shared.pc DESTINATION ${CMAKE_INSTALL_PREFIX}/share/pkgconfig)
 
 	spirv_cross_add_library(spirv-cross-c-shared spirv_cross_c_shared SHARED
 		${spirv-cross-core-sources}
@@ -181,6 +181,9 @@ if (SPIRV_CROSS_SHARED)
 	if (CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
 		# Only export the C API.
 		target_compile_options(spirv-cross-c-shared PRIVATE -fvisibility=hidden)
+		if (NOT APPLE)
+			set_target_properties(spirv-cross-c-shared PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+		endif()
 	endif()
 
 	set_target_properties(spirv-cross-c-shared PROPERTIES

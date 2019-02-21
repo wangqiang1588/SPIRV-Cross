@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "spirv_cross_c_api.h"
+#include "spirv_cross_c.h"
 #include "spirv_glsl.hpp"
 #include "spirv_msl.hpp"
 #include "spirv_hlsl.hpp"
