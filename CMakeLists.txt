@@ -37,11 +37,12 @@ endif()
 
 if (CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
 	set(spirv-compiler-options ${spirv-compiler-options} -Wall -Wextra -Werror -Wshadow)
-	set(spirv-compiler-defines ${spirv-compiler-defines} __STDC_LIMIT_MACROS)
 
 	if(SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS)
 		set(spirv-compiler-options ${spirv-compiler-options} -fno-exceptions)
 	endif()
+elseif (MSVC)
+	set(spirv-compiler-options ${spirv-compiler-options} /wd4267)
 endif()
 
 macro(extract_headers out_abs file_list)

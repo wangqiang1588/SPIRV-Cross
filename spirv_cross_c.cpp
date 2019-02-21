@@ -24,6 +24,11 @@
 #include <new>
 #include <memory>
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+
 using namespace std;
 using namespace spirv_cross;
 
@@ -740,3 +745,6 @@ spvc_error spvc_set_entry_point(spvc_compiler compiler, const char *name, SpvExe
 	return SPVC_SUCCESS;
 }
 
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
