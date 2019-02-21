@@ -35,9 +35,6 @@ if(SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS)
 	set(spirv-compiler-defines ${spirv-compiler-defines} SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS)
 endif()
 
-# To specify special debug or optimization options, use
-# -DCMAKE_CXX_COMPILE_FLAGS
-# However, we require the C++11 dialect.
 if (CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
 	set(spirv-compiler-options ${spirv-compiler-options} -Wall -Wextra -Werror -Wshadow)
 	set(spirv-compiler-defines ${spirv-compiler-defines} __STDC_LIMIT_MACROS)
@@ -162,6 +159,17 @@ if (SPIRV_CROSS_STATIC)
 endif()
 
 if (SPIRV_CROSS_SHARED)
+	set(spirv-cross-abi-major 0)
+	set(spirv-cross-abi-minor 1)
+	set(spirv-cross-abi-patch 0)
+	set(SPIRV_CROSS_VERSION ${spirv-cross-abi-major}.${spirv-cross-abi-minor}.${spirv-cross-abi-patch})
+	set(SPIRV_CROSS_INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/lib)
+	set(SPIRV_CROSS_INSTALL_INC_DIR ${CMAKE_INSTALL_PREFIX}/include)
+	configure_file(
+		${CMAKE_CURRENT_SOURCE_DIR}/pkg-config/spirv_cross_c_shared.pc.in
+		${CMAKE_CURRENT_BINARY_DIR}/spirv_cross_c_shared.pc @ONLY)
+	install(FILES ${CMAKE_CURRENT_BINARY_DIR}/spirv_cross_c_shared.pc DESTINATION ${CMAKE_INSTALL_PREFIX}/share/pkgconfig)
+
 	spirv_cross_add_library(spirv-cross-c-shared spirv_cross_c_shared SHARED
 		${spirv-cross-core-sources}
 		${spirv-cross-glsl-sources}
@@ -174,6 +182,10 @@ if (SPIRV_CROSS_SHARED)
 		# Only export the C API.
 		target_compile_options(spirv-cross-c-shared PRIVATE -fvisibility=hidden)
 	endif()
+
+	set_target_properties(spirv-cross-c-shared PROPERTIES
+		VERSION ${SPIRV_CROSS_VERSION}
+		SOVERSION ${spirv-cross-abi-major})
 endif()
 
 if (SPIRV_CROSS_CLI)

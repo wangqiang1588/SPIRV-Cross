@@ -73,10 +73,10 @@ bool CompilerMSL::is_msl_vertex_attribute_used(uint32_t location)
 	return vtx_attrs_in_use.count(location) != 0;
 }
 
-bool CompilerMSL::is_msl_resource_binding_used(ExecutionModel model, uint32_t set, uint32_t binding)
+bool CompilerMSL::is_msl_resource_binding_used(ExecutionModel model, uint32_t desc_set, uint32_t binding)
 {
 	auto itr = find_if(begin(resource_bindings), end(resource_bindings), [&](const std::pair<MSLResourceBinding, bool> &resource) -> bool {
-		return model == resource.first.stage && set == resource.first.desc_set && binding == resource.first.binding;
+		return model == resource.first.stage && desc_set == resource.first.desc_set && binding == resource.first.binding;
 	});
 	return itr != end(resource_bindings) && itr->second;
 }
