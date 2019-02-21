@@ -24,7 +24,13 @@
 extern "C" {
 #endif
 
+#if defined(__GNUC__)
+#define SPVC_PUBLIC_API __attribute__((visibility("default")))
+#elif defined(_MSC_VER)
+#define SPVC_PUBLIC_API __declspec(dllexport)
+#else
 #define SPVC_PUBLIC_API
+#endif
 
 typedef struct spvc_context_s *spvc_context;
 typedef struct spvc_parsed_ir_s *spvc_parsed_ir;
