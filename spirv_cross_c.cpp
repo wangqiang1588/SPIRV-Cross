@@ -482,7 +482,7 @@ bool spvc_resources_s::copy_resources(std::vector<spvc_reflected_resource> &outp
 {
 	for (auto &i : inputs)
 	{
-		spvc_reflected_resource r = {};
+		spvc_reflected_resource r;
 		r.base_type_id = i.base_type_id;
 		r.type_id = i.type_id;
 		r.id = i.id;
@@ -723,7 +723,7 @@ spvc_error spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry
 	auto entries = compiler->compiler->get_entry_points_and_stages();
 	for (auto &entry : entries)
 	{
-		spvc_entry_point new_entry = {};
+		spvc_entry_point new_entry;
 		new_entry.execution_model = static_cast<SpvExecutionModel>(entry.execution_model);
 		new_entry.name = compiler->allocate_name(entry.name);
 		if (!new_entry.name)
