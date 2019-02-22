@@ -35,9 +35,11 @@ extern "C" {
 typedef struct spvc_context_s *spvc_context;
 typedef struct spvc_parsed_ir_s *spvc_parsed_ir;
 typedef struct spvc_compiler_s *spvc_compiler;
-typedef struct spvc_type_s *spvc_type;
 typedef struct spvc_compiler_options_s *spvc_compiler_options;
 typedef struct spvc_resources_s *spvc_resources;
+
+struct spvc_type_s;
+typedef const spvc_type_s *spvc_type;
 
 typedef SpvId spvc_type_id;
 typedef SpvId spvc_variable_id;
@@ -240,6 +242,8 @@ SPVC_PUBLIC_API const char *spvc_get_member_decoration_string(spvc_compiler comp
 // Entry points.
 SPVC_PUBLIC_API spvc_error spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry_point **entry_points, size_t *num_entry_points);
 SPVC_PUBLIC_API spvc_error spvc_set_entry_point(spvc_compiler compiler, const char *name, SpvExecutionModel model);
+
+SPVC_PUBLIC_API spvc_type spvc_get_type_handle(spvc_compiler compiler, spvc_type_id id);
 
 #ifdef __cplusplus
 }

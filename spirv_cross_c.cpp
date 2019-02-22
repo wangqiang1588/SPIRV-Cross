@@ -67,6 +67,12 @@ struct spvc_compiler_options_s
 	CompilerHLSL::Options hlsl;
 };
 
+// Dummy-inherit to we can keep our opaque type handle type safe in C-land as well,
+// and just throw void * around.
+struct spvc_type_s : SPIRType
+{
+};
+
 struct spvc_resources_s : NameAllocator
 {
 	spvc_context context = nullptr;
@@ -743,6 +749,24 @@ spvc_error spvc_set_entry_point(spvc_compiler compiler, const char *name, SpvExe
 {
 	compiler->compiler->set_entry_point(name, static_cast<spv::ExecutionModel>(model));
 	return SPVC_SUCCESS;
+}
+
+spvc_type spvc_get_type_handle(spvc_compiler compiler, spvc_type_id id)
+{
+	// Should only throw if an intentionally garbage ID is passed, but the IDs are not type-safe.
+#ifndef SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS
+	try
+#endif
+	{
+		return static_cast<spvc_type>(&compiler->compiler->get_type(id));
+	}
+#ifndef SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS
+	catch (const std::exception &e)
+	{
+		compiler->context->last_error = e.what();
+		return nullptr;
+	}
+#endif
 }
 
 #ifdef _MSC_VER
