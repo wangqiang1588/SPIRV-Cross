@@ -1592,7 +1592,7 @@ void CompilerMSL::add_tess_level_input_to_interface_block(const std::string &ib_
 			}
 			else if (vtx_attrs_by_builtin.count(builtin))
 			{
-				uint32_t locn = vtx_attrs_by_builtin[builtin]->location;
+				uint32_t locn = vtx_attrs_by_builtin[builtin].location;
 				set_member_decoration(ib_type.self, ib_mbr_idx, DecorationLocation, locn);
 				mark_location_as_used_by_shader(locn, StorageClassInput);
 			}
@@ -1653,7 +1653,7 @@ void CompilerMSL::add_tess_level_input_to_interface_block(const std::string &ib_
 		}
 		else if (vtx_attrs_by_builtin.count(builtin))
 		{
-			uint32_t locn = vtx_attrs_by_builtin[builtin]->location;
+			uint32_t locn = vtx_attrs_by_builtin[builtin].location;
 			set_member_decoration(ib_type.self, ib_mbr_idx, DecorationLocation, locn);
 			mark_location_as_used_by_shader(locn, StorageClassInput);
 		}
