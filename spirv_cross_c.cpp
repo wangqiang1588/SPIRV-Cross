@@ -32,10 +32,52 @@
 using namespace std;
 using namespace spirv_cross;
 
+struct ScratchMemoryAllocation
+{
+	virtual ~ScratchMemoryAllocation() = default;
+};
+
+struct StringAllocation : ScratchMemoryAllocation
+{
+	explicit StringAllocation(const char *name)
+		: str(name)
+	{
+	}
+
+	explicit StringAllocation(std::string name)
+		: str(std::move(name))
+	{
+	}
+
+	std::string str;
+};
+
 struct spvc_context_s
 {
 	string last_error;
+	vector<unique_ptr<ScratchMemoryAllocation>> allocations;
+	const char *allocate_name(const std::string &name);
 };
+
+const char *spvc_context_s::allocate_name(const std::string &name)
+{
+#ifndef SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS
+	try
+	{
+#endif
+		auto alloc = unique_ptr<StringAllocation>(new StringAllocation(name));
+		auto *ret = alloc->str.c_str();
+		allocations.emplace_back(std::move(alloc));
+		return ret;
+#ifndef SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS
+	}
+	catch (const exception &e)
+	{
+		context->last_error = e.what();
+		return nullptr;
+	}
+#endif
+}
 
 struct spvc_parsed_ir_s
 {
@@ -43,13 +85,7 @@ struct spvc_parsed_ir_s
 	ParsedIR parsed;
 };
 
-struct NameAllocator
-{
-	const char *allocate_name(const std::string &name);
-	std::vector<std::unique_ptr<char[]>> string_storage;
-};
-
-struct spvc_compiler_s : NameAllocator
+struct spvc_compiler_s
 {
 	spvc_context context = nullptr;
 	unique_ptr<Compiler> compiler;
@@ -73,7 +109,7 @@ struct spvc_type_s : SPIRType
 {
 };
 
-struct spvc_resources_s : NameAllocator
+struct spvc_resources_s
 {
 	spvc_context context = nullptr;
 	std::vector<spvc_reflected_resource> uniform_buffers;
@@ -467,22 +503,6 @@ spvc_error spvc_compile(spvc_compiler compiler, char **source)
 #endif
 }
 
-void spvc_destroy_string(char *source)
-{
-	delete[] source;
-}
-
-const char *NameAllocator::allocate_name(const std::string &name)
-{
-	char *dup = new (std::nothrow) char[name.size() + 1];
-	if (dup)
-	{
-		string_storage.emplace_back(dup);
-		strcpy(dup, name.c_str());
-	}
-	return dup;
-}
-
 bool spvc_resources_s::copy_resources(std::vector<spvc_reflected_resource> &outputs,
                                       const std::vector<Resource> &inputs)
 {
@@ -492,7 +512,7 @@ bool spvc_resources_s::copy_resources(std::vector<spvc_reflected_resource> &outp
 		r.base_type_id = i.base_type_id;
 		r.type_id = i.type_id;
 		r.id = i.id;
-		r.name = allocate_name(i.name);
+		r.name = context->allocate_name(i.name);
 		if (!r.name)
 			return false;
 
@@ -723,7 +743,6 @@ const char *spvc_get_member_decoration_string(spvc_compiler compiler, spvc_type_
 
 spvc_error spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry_point **entry_points, size_t *num_entry_points)
 {
-	compiler->string_storage.clear();
 	compiler->entry_points.clear();
 
 	auto entries = compiler->compiler->get_entry_points_and_stages();
@@ -731,7 +750,7 @@ spvc_error spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry
 	{
 		spvc_entry_point new_entry;
 		new_entry.execution_model = static_cast<SpvExecutionModel>(entry.execution_model);
-		new_entry.name = compiler->allocate_name(entry.name);
+		new_entry.name = compiler->context->allocate_name(entry.name);
 		if (!new_entry.name)
 		{
 			compiler->context->last_error = "Out of memory.";
@@ -767,6 +786,107 @@ spvc_type spvc_get_type_handle(spvc_compiler compiler, spvc_type_id id)
 		return nullptr;
 	}
 #endif
+}
+
+static spvc_basetype convert_basetype(SPIRType::BaseType type)
+{
+	return static_cast<spvc_basetype>(type);
+}
+
+spvc_basetype spvc_type_get_basetype(spvc_type type)
+{
+	return convert_basetype(static_cast<const SPIRType *>(type)->basetype);
+}
+
+unsigned spvc_type_get_bit_width(spvc_type type)
+{
+	return static_cast<const SPIRType *>(type)->width;
+}
+
+unsigned spvc_type_get_vector_size(spvc_type type)
+{
+	return static_cast<const SPIRType *>(type)->vecsize;
+}
+
+unsigned spvc_type_get_columns(spvc_type type)
+{
+	return static_cast<const SPIRType *>(type)->columns;
+}
+
+unsigned spvc_type_get_num_array_dimensions(spvc_type type)
+{
+	return unsigned(static_cast<const SPIRType *>(type)->array.size());
+}
+
+spvc_bool spvc_type_array_dimension_is_literal(spvc_type type, unsigned dimension)
+{
+	return static_cast<const SPIRType *>(type)->array_size_literal[dimension] ?
+	       SPVC_TRUE : SPVC_FALSE;
+}
+
+SpvId spvc_type_get_array_dimension(spvc_type type, unsigned dimension)
+{
+	return static_cast<const SPIRType *>(type)->array[dimension];
+}
+
+unsigned spvc_type_get_num_member_types(spvc_type type)
+{
+	return unsigned(static_cast<const SPIRType *>(type)->member_types.size());
+}
+
+spvc_type_id spvc_type_get_member_type(spvc_type type, unsigned index)
+{
+	return static_cast<const SPIRType *>(type)->member_types[index];
+}
+
+SpvStorageClass spvc_type_get_storage_class(spvc_type type)
+{
+	return static_cast<SpvStorageClass>(static_cast<const SPIRType *>(type)->storage);
+}
+
+// Image type query.
+spvc_type_id spvc_type_get_image_sampled_type(spvc_type type)
+{
+	return static_cast<const SPIRType *>(type)->image.type;
+}
+
+SpvDim spvc_type_get_image_dimension(spvc_type type)
+{
+	return static_cast<SpvDim>(static_cast<const SPIRType *>(type)->image.dim);
+}
+
+spvc_bool spvc_type_get_image_depth(spvc_type type)
+{
+	return static_cast<const SPIRType *>(type)->image.depth ?
+	       SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_bool spvc_type_get_image_arrayed(spvc_type type)
+{
+	return static_cast<const SPIRType *>(type)->image.arrayed ?
+	       SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_bool spvc_type_get_image_multisampled(spvc_type type)
+{
+	return static_cast<const SPIRType *>(type)->image.ms ?
+	       SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_bool spvc_type_get_image_is_storage(spvc_type type)
+{
+	return static_cast<const SPIRType *>(type)->image.sampled == 2 ?
+	       SPVC_TRUE : SPVC_FALSE;
+}
+
+SpvImageFormat spvc_type_get_image_storage_format(spvc_type type)
+{
+	return static_cast<SpvImageFormat>(static_cast<const SPIRType *>(type)->image.format);
+}
+
+SpvAccessQualifier spvc_type_get_image_access_qualifier(spvc_type type)
+{
+	return static_cast<SpvAccessQualifier>(static_cast<const SPIRType *>(type)->image.access);
 }
 
 #ifdef _MSC_VER

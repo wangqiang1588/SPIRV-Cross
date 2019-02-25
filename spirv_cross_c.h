@@ -37,14 +37,15 @@ typedef struct spvc_parsed_ir_s *spvc_parsed_ir;
 typedef struct spvc_compiler_s *spvc_compiler;
 typedef struct spvc_compiler_options_s *spvc_compiler_options;
 typedef struct spvc_resources_s *spvc_resources;
-
 struct spvc_type_s;
 typedef const spvc_type_s *spvc_type;
+struct spvc_bitset_s;
+typedef const spvc_bitset_s *spvc_bitset;
+typedef struct spvc_constant_s *spvc_constant;
 
 typedef SpvId spvc_type_id;
 typedef SpvId spvc_variable_id;
 typedef SpvId spvc_constant_id;
-typedef SpvId spvc_id;
 
 struct spvc_reflected_resource
 {
@@ -58,6 +59,19 @@ struct spvc_entry_point
 {
 	SpvExecutionModel execution_model;
 	const char *name;
+};
+
+struct spvc_combined_image_sampler
+{
+	spvc_variable_id combined_id;
+	spvc_variable_id image_id;
+	spvc_variable_id sampler_id;
+};
+
+struct spvc_specialization_constant
+{
+	spvc_variable_id id;
+	spvc_variable_id constant_id;
 };
 
 typedef int spvc_bool;
@@ -126,6 +140,31 @@ typedef enum spvc_resource_type
 	SPVC_RESOURCE_TYPE_INT_MAX = 0x7fffffff
 } spvc_resource_type;
 
+typedef enum spvc_basetype
+{
+	SPVC_BASETYPE_UNKNOWN = 0,
+	SPVC_BASETYPE_VOID = 1,
+	SPVC_BASETYPE_BOOLEAN = 2,
+	SPVC_BASETYPE_INT8 = 3,
+	SPVC_BASETYPE_UINT8 = 4,
+	SPVC_BASETYPE_INT16 = 5,
+	SPVC_BASETYPE_UINT16 = 6,
+	SPVC_BASETYPE_INT32 = 7,
+	SPVC_BASETYPE_UINT32 = 8,
+	SPVC_BASETYPE_INT64 = 9,
+	SPVC_BASETYPE_UINT64 = 10,
+	SPVC_BASETYPE_ATOMIC_COUNTER = 11,
+	SPVC_BASETYPE_FP16 = 12,
+	SPVC_BASETYPE_FP32 = 13,
+	SPVC_BASETYPE_FP64 = 14,
+	SPVC_BASETYPE_STRUCT = 15,
+	SPVC_BASETYPE_IMAGE = 16,
+	SPVC_BASETYPE_SAMPLED_IMAGE = 17,
+	SPVC_BASETYPE_SAMPLER = 18,
+
+	SPVC_BASETYPE_INT_MAX = 0x7fffffff
+} spvc_basetype;
+
 #define SPVC_COMPILER_OPTION_COMMON_BIT 0x1000000
 #define SPVC_COMPILER_OPTION_GLSL_BIT 0x2000000
 #define SPVC_COMPILER_OPTION_HLSL_BIT 0x4000000
@@ -186,6 +225,7 @@ typedef enum spvc_compiler_option
 // Context is the highest-level API construct.
 SPVC_PUBLIC_API spvc_error spvc_create_context(spvc_context *context);
 SPVC_PUBLIC_API spvc_error spvc_destroy_context(spvc_context context);
+SPVC_PUBLIC_API void spvc_context_release_temporary_allocations(spvc_context context);
 SPVC_PUBLIC_API const char *spvc_get_last_error_string(spvc_context context);
 
 // SPIR-V parsing interface.
@@ -198,6 +238,7 @@ SPVC_PUBLIC_API spvc_error spvc_create_compiler(spvc_context context, spvc_backe
                                                 spvc_parsed_ir parsed_ir, spvc_capture_mode mode,
                                                 spvc_compiler *compiler);
 SPVC_PUBLIC_API void spvc_destroy_compiler(spvc_compiler compiler);
+SPVC_PUBLIC_API unsigned spvc_get_current_id_bound(spvc_compiler compiler);
 
 // Set options.
 SPVC_PUBLIC_API spvc_error spvc_create_compiler_options(spvc_compiler compiler, spvc_compiler_options *options);
@@ -209,8 +250,7 @@ SPVC_PUBLIC_API spvc_error spvc_install_compiler_options(spvc_compiler compiler,
 SPVC_PUBLIC_API void spvc_destroy_compiler_options(spvc_compiler_options options);
 
 // Compile IR into a string.
-SPVC_PUBLIC_API spvc_error spvc_compile(spvc_compiler compiler, char **source);
-SPVC_PUBLIC_API void spvc_destroy_string(char *source);
+SPVC_PUBLIC_API spvc_error spvc_compile(spvc_compiler compiler, const char **source);
 
 // Reflect resources.
 SPVC_PUBLIC_API spvc_error spvc_create_statically_accessed_shader_resources(spvc_compiler compiler, spvc_resources *resources);
@@ -220,7 +260,7 @@ SPVC_PUBLIC_API spvc_error spvc_get_resource_list(spvc_resources resources, spvc
                                                   size_t *resource_size);
 SPVC_PUBLIC_API void spvc_destroy_shader_resources(spvc_resources resources);
 
-// Decorations
+// Decorations.
 SPVC_PUBLIC_API void spvc_set_decoration(spvc_compiler compiler, SpvId id, SpvDecoration decoration, unsigned argument);
 SPVC_PUBLIC_API void spvc_set_decoration_string(spvc_compiler compiler, SpvId id, SpvDecoration decoration, const char *argument);
 SPVC_PUBLIC_API void spvc_set_name(spvc_compiler compiler, SpvId id, const char *argument);
@@ -242,8 +282,81 @@ SPVC_PUBLIC_API const char *spvc_get_member_decoration_string(spvc_compiler comp
 // Entry points.
 SPVC_PUBLIC_API spvc_error spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry_point **entry_points, size_t *num_entry_points);
 SPVC_PUBLIC_API spvc_error spvc_set_entry_point(spvc_compiler compiler, const char *name, SpvExecutionModel model);
+SPVC_PUBLIC_API void spvc_rename_entry_point(const char *old_name, const char *new_name, SpvExecutionModel model);
+SPVC_PUBLIC_API const char *spvc_get_cleansed_entry_point_name(const char *name, SpvExecutionModel model);
+SPVC_PUBLIC_API void spvc_set_execution_mode(spvc_compiler compiler, SpvExecutionMode mode);
+SPVC_PUBLIC_API void spvc_unset_execution_mode(spvc_compiler compiler, SpvExecutionMode mode);
+SPVC_PUBLIC_API void spvc_set_execution_mode_with_arguments(spvc_compiler compiler, SpvExecutionMode mode,
+                                                            unsigned arg0, unsigned arg1, unsigned arg2);
+SPVC_PUBLIC_API spvc_bitset spvc_get_execution_mode_bitset(spvc_compiler compiler);
+SPVC_PUBLIC_API unsigned spvc_get_execution_mode_argument(spvc_compiler compiler, SpvExecutionMode mode);
+SPVC_PUBLIC_API unsigned spvc_get_execution_mode_argument_by_index(spvc_compiler compiler, SpvExecutionMode mode, unsigned index);
+SPVC_PUBLIC_API SpvExecutionModel spvc_get_execution_model(spvc_compiler compiler);
 
+// Type query interface.
 SPVC_PUBLIC_API spvc_type spvc_get_type_handle(spvc_compiler compiler, spvc_type_id id);
+
+SPVC_PUBLIC_API spvc_basetype spvc_type_get_basetype(spvc_type type);
+SPVC_PUBLIC_API unsigned spvc_type_get_bit_width(spvc_type type);
+SPVC_PUBLIC_API unsigned spvc_type_get_vector_size(spvc_type type);
+SPVC_PUBLIC_API unsigned spvc_type_get_columns(spvc_type type);
+SPVC_PUBLIC_API unsigned spvc_type_get_num_array_dimensions(spvc_type type);
+SPVC_PUBLIC_API spvc_bool spvc_type_array_dimension_is_literal(spvc_type type, unsigned dimension);
+SPVC_PUBLIC_API SpvId spvc_type_get_array_dimension(spvc_type type, unsigned dimension);
+SPVC_PUBLIC_API unsigned spvc_type_get_num_member_types(spvc_type type);
+SPVC_PUBLIC_API spvc_type_id spvc_type_get_member_type(spvc_type type, unsigned index);
+SPVC_PUBLIC_API SpvStorageClass spvc_type_get_storage_class(spvc_type type);
+
+// Image type query.
+SPVC_PUBLIC_API spvc_type_id spvc_type_get_image_sampled_type(spvc_type type);
+SPVC_PUBLIC_API SpvDim spvc_type_get_image_dimension(spvc_type type);
+SPVC_PUBLIC_API spvc_bool spvc_type_get_image_is_depth(spvc_type type);
+SPVC_PUBLIC_API spvc_bool spvc_type_get_image_arrayed(spvc_type type);
+SPVC_PUBLIC_API spvc_bool spvc_type_get_image_multisampled(spvc_type type);
+SPVC_PUBLIC_API spvc_bool spvc_type_get_image_is_storage(spvc_type type);
+SPVC_PUBLIC_API SpvImageFormat spvc_type_get_image_storage_format(spvc_type type);
+SPVC_PUBLIC_API SpvAccessQualifier spvc_type_get_image_access_qualifier(spvc_type type);
+
+// Buffer layout query.
+SPVC_PUBLIC_API size_t spvc_get_declared_struct_size(spvc_compiler compiler, spvc_type struct_type);
+SPVC_PUBLIC_API size_t spvc_get_declared_struct_size_runtime_array(spvc_compiler compiler,
+                                                                   spvc_type struct_type, size_t array_size);
+
+SPVC_PUBLIC_API unsigned spvc_type_struct_member_offset(spvc_compiler compiler,
+                                                        spvc_type type, unsigned index);
+SPVC_PUBLIC_API unsigned spvc_type_struct_member_array_stride(spvc_compiler compiler,
+                                                              spvc_type type, unsigned index);
+SPVC_PUBLIC_API unsigned spvc_type_struct_member_matrix_stride(spvc_compiler compiler,
+                                                               spvc_type type, unsigned index);
+
+// Workaround helper functions.
+SPVC_PUBLIC_API spvc_variable_id spvc_build_dummy_sampler_for_combined_images(spvc_compiler compiler);
+SPVC_PUBLIC_API void spvc_build_combined_image_samplers(spvc_compiler compiler);
+SPVC_PUBLIC_API void spvc_get_combined_image_samplers(spvc_compiler compiler,
+                                                      const struct spvc_combined_image_sampler **samplers,
+                                                      size_t *num_samplers);
+
+// Constants
+SPVC_PUBLIC_API void spvc_get_specialization_constants(spvc_compiler compiler,
+                                                       const struct spvc_specialization_constant **constants,
+                                                       size_t *num_constants);
+SPVC_PUBLIC_API spvc_constant spvc_get_constant_handle(spvc_compiler compiler,
+                                                       spvc_variable_id id);
+
+// Misc reflection
+SPVC_PUBLIC_API spvc_bool spvc_get_binary_offset_for_decoration(spvc_compiler compiler,
+                                                                spvc_variable_id id,
+                                                                SpvDecoration decoration,
+                                                                unsigned *word_offset);
+
+SPVC_PUBLIC_API spvc_bool spvc_buffer_is_hlsl_counter_buffer(spvc_compiler compiler, spvc_variable_id id);
+SPVC_PUBLIC_API spvc_bool spvc_buffer_get_hlsl_counter_buffer(spvc_compiler compiler, spvc_variable_id id, unsigned *counter_id);
+
+SPVC_PUBLIC_API void spvc_get_declared_capabilities(spvc_compiler compiler, const SpvCapability **capabilities, size_t *num_capabilities);
+SPVC_PUBLIC_API void spvc_get_declared_extensions(spvc_compiler compiler, const char **extensions, size_t *num_extensions);
+
+SPVC_PUBLIC_API const char *spvc_get_remapped_declared_block_name(spvc_compiler compiler, spvc_variable_id id);
+SPVC_PUBLIC_API spvc_bitset spvc_get_buffer_block_flags(spvc_compiler compiler, spvc_variable_id id);
 
 #ifdef __cplusplus
 }
