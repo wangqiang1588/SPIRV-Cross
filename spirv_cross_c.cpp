@@ -89,20 +89,20 @@ const char *spvc_context_s::allocate_name(const std::string &name)
 	SPVC_END_SAFE_SCOPE(this, nullptr)
 }
 
-struct spvc_parsed_ir_s
+struct spvc_parsed_ir_s : ScratchMemoryAllocation
 {
 	spvc_context context = nullptr;
 	ParsedIR parsed;
 };
 
-struct spvc_compiler_s
+struct spvc_compiler_s : ScratchMemoryAllocation
 {
 	spvc_context context = nullptr;
 	unique_ptr<Compiler> compiler;
 	spvc_backend backend = SPVC_BACKEND_NONE;
 };
 
-struct spvc_compiler_options_s
+struct spvc_compiler_options_s : ScratchMemoryAllocation
 {
 	spvc_context context = nullptr;
 	uint32_t backend_flags = 0;
@@ -121,7 +121,7 @@ struct spvc_constant_s : SPIRConstant
 {
 };
 
-struct spvc_resources_s
+struct spvc_resources_s : ScratchMemoryAllocation
 {
 	spvc_context context = nullptr;
 	std::vector<spvc_reflected_resource> uniform_buffers;
@@ -155,12 +155,6 @@ void spvc_context_release_temporary_allocations(spvc_context context)
 	context->allocations.clear();
 }
 
-spvc_result spvc_destroy_context(spvc_context context)
-{
-	delete context;
-	return SPVC_SUCCESS;
-}
-
 const char *spvc_get_last_error_string(spvc_context context)
 {
 	return context->last_error.c_str();
@@ -169,134 +163,134 @@ const char *spvc_get_last_error_string(spvc_context context)
 spvc_result spvc_parse_spirv(spvc_context context, const SpvId *spirv, size_t word_count,
                             spvc_parsed_ir *parsed_ir)
 {
-	std::unique_ptr<spvc_parsed_ir_s> pir(new(std::nothrow) spvc_parsed_ir_s);
-	if (!pir)
-		return SPVC_ERROR_OUT_OF_MEMORY;
-
-	pir->context = context;
 	SPVC_BEGIN_SAFE_SCOPE
 	{
+		std::unique_ptr<spvc_parsed_ir_s> pir(new(std::nothrow) spvc_parsed_ir_s);
+		if (!pir)
+			return SPVC_ERROR_OUT_OF_MEMORY;
+
+		pir->context = context;
 		Parser parser(spirv, word_count);
 		parser.parse();
 		pir->parsed = move(parser.get_parsed_ir());
+		*parsed_ir = pir.get();
+		context->allocations.push_back(std::move(pir));
 	}
-	SPVC_END_SAFE_SCOPE(pir->context, SPVC_ERROR_INVALID_SPIRV)
-
-	*parsed_ir = pir.release();
+	SPVC_END_SAFE_SCOPE(context, SPVC_ERROR_INVALID_SPIRV)
 	return SPVC_SUCCESS;
-}
-
-void spvc_destroy_parsed_ir(spvc_parsed_ir parsed_ir)
-{
-	delete parsed_ir;
 }
 
 spvc_result spvc_create_compiler(spvc_context context, spvc_backend backend,
                                 spvc_parsed_ir parsed_ir, spvc_capture_mode mode,
                                 spvc_compiler *compiler)
 {
-	std::unique_ptr<spvc_compiler_s> comp(new(std::nothrow) spvc_compiler_s);
-	if (!comp)
-		return SPVC_ERROR_OUT_OF_MEMORY;
-	comp->backend = backend;
-	comp->context = context;
-
-	switch (backend)
+	SPVC_BEGIN_SAFE_SCOPE
 	{
-	case SPVC_BACKEND_NONE:
-		if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
-			comp->compiler.reset(new Compiler(move(parsed_ir->parsed)));
-		else if (mode == SPVC_CAPTURE_MODE_COPY)
-			comp->compiler.reset(new Compiler(parsed_ir->parsed));
-		else
-			return SPVC_ERROR_INVALID_ARGUMENT;
-		break;
+		std::unique_ptr<spvc_compiler_s> comp(new(std::nothrow) spvc_compiler_s);
+		if (!comp)
+			return SPVC_ERROR_OUT_OF_MEMORY;
+		comp->backend = backend;
+		comp->context = context;
 
-	case SPVC_BACKEND_GLSL:
-		if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
-			comp->compiler.reset(new CompilerGLSL(move(parsed_ir->parsed)));
-		else if (mode == SPVC_CAPTURE_MODE_COPY)
-			comp->compiler.reset(new CompilerGLSL(parsed_ir->parsed));
-		else
-			return SPVC_ERROR_INVALID_ARGUMENT;
-		break;
+		switch (backend)
+		{
+		case SPVC_BACKEND_NONE:
+			if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
+				comp->compiler.reset(new Compiler(move(parsed_ir->parsed)));
+			else if (mode == SPVC_CAPTURE_MODE_COPY)
+				comp->compiler.reset(new Compiler(parsed_ir->parsed));
+			else
+				return SPVC_ERROR_INVALID_ARGUMENT;
+			break;
 
-	case SPVC_BACKEND_HLSL:
-		if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
-			comp->compiler.reset(new CompilerHLSL(move(parsed_ir->parsed)));
-		else if (mode == SPVC_CAPTURE_MODE_COPY)
-			comp->compiler.reset(new CompilerHLSL(parsed_ir->parsed));
-		else
-			return SPVC_ERROR_INVALID_ARGUMENT;
-		break;
+		case SPVC_BACKEND_GLSL:
+			if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
+				comp->compiler.reset(new CompilerGLSL(move(parsed_ir->parsed)));
+			else if (mode == SPVC_CAPTURE_MODE_COPY)
+				comp->compiler.reset(new CompilerGLSL(parsed_ir->parsed));
+			else
+				return SPVC_ERROR_INVALID_ARGUMENT;
+			break;
 
-	case SPVC_BACKEND_MSL:
-		if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
-			comp->compiler.reset(new CompilerMSL(move(parsed_ir->parsed)));
-		else if (mode == SPVC_CAPTURE_MODE_COPY)
-			comp->compiler.reset(new CompilerMSL(parsed_ir->parsed));
-		else
-			return SPVC_ERROR_INVALID_ARGUMENT;
-		break;
+		case SPVC_BACKEND_HLSL:
+			if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
+				comp->compiler.reset(new CompilerHLSL(move(parsed_ir->parsed)));
+			else if (mode == SPVC_CAPTURE_MODE_COPY)
+				comp->compiler.reset(new CompilerHLSL(parsed_ir->parsed));
+			else
+				return SPVC_ERROR_INVALID_ARGUMENT;
+			break;
 
-	case SPVC_BACKEND_CPP:
-		if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
-			comp->compiler.reset(new CompilerCPP(move(parsed_ir->parsed)));
-		else if (mode == SPVC_CAPTURE_MODE_COPY)
-			comp->compiler.reset(new CompilerCPP(parsed_ir->parsed));
-		else
-			return SPVC_ERROR_INVALID_ARGUMENT;
-		break;
+		case SPVC_BACKEND_MSL:
+			if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
+				comp->compiler.reset(new CompilerMSL(move(parsed_ir->parsed)));
+			else if (mode == SPVC_CAPTURE_MODE_COPY)
+				comp->compiler.reset(new CompilerMSL(parsed_ir->parsed));
+			else
+				return SPVC_ERROR_INVALID_ARGUMENT;
+			break;
 
-	case SPVC_BACKEND_JSON:
-		if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
-			comp->compiler.reset(new CompilerReflection(move(parsed_ir->parsed)));
-		else if (mode == SPVC_CAPTURE_MODE_COPY)
-			comp->compiler.reset(new CompilerReflection(parsed_ir->parsed));
-		else
-			return SPVC_ERROR_INVALID_ARGUMENT;
-		break;
+		case SPVC_BACKEND_CPP:
+			if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
+				comp->compiler.reset(new CompilerCPP(move(parsed_ir->parsed)));
+			else if (mode == SPVC_CAPTURE_MODE_COPY)
+				comp->compiler.reset(new CompilerCPP(parsed_ir->parsed));
+			else
+				return SPVC_ERROR_INVALID_ARGUMENT;
+			break;
 
-	default:
-		return SPVC_ERROR_INVALID_ARGUMENT;
+		case SPVC_BACKEND_JSON:
+			if (mode == SPVC_CAPTURE_MODE_TAKE_OWNERSHIP)
+				comp->compiler.reset(new CompilerReflection(move(parsed_ir->parsed)));
+			else if (mode == SPVC_CAPTURE_MODE_COPY)
+				comp->compiler.reset(new CompilerReflection(parsed_ir->parsed));
+			else
+				return SPVC_ERROR_INVALID_ARGUMENT;
+			break;
+
+		default:
+			return SPVC_ERROR_INVALID_ARGUMENT;
+		}
+
+		*compiler = comp.get();
+		context->allocations.push_back(std::move(comp));
 	}
-
-	*compiler = comp.release();
+	SPVC_END_SAFE_SCOPE(context, SPVC_ERROR_OUT_OF_MEMORY)
 	return SPVC_SUCCESS;
-}
-
-void spvc_destroy_compiler(spvc_compiler compiler)
-{
-	delete compiler;
 }
 
 spvc_result spvc_create_compiler_options(spvc_compiler compiler, spvc_compiler_options *options)
 {
-	std::unique_ptr<spvc_compiler_options_s> opt(new (std::nothrow) spvc_compiler_options_s);
-	if (!opt)
-		return SPVC_ERROR_OUT_OF_MEMORY;
-
-	opt->context = compiler->context;
-	opt->backend_flags = 0;
-	switch (compiler->backend)
+	SPVC_BEGIN_SAFE_SCOPE
 	{
-	case SPVC_BACKEND_MSL:
-		opt->backend_flags |= SPVC_COMPILER_OPTION_MSL_BIT | SPVC_COMPILER_OPTION_COMMON_BIT;
-		break;
+		std::unique_ptr<spvc_compiler_options_s> opt(new(std::nothrow) spvc_compiler_options_s);
+		if (!opt)
+			return SPVC_ERROR_OUT_OF_MEMORY;
 
-	case SPVC_BACKEND_HLSL:
-		opt->backend_flags |= SPVC_COMPILER_OPTION_HLSL_BIT | SPVC_COMPILER_OPTION_COMMON_BIT;
-		break;
+		opt->context = compiler->context;
+		opt->backend_flags = 0;
+		switch (compiler->backend)
+		{
+		case SPVC_BACKEND_MSL:
+			opt->backend_flags |= SPVC_COMPILER_OPTION_MSL_BIT | SPVC_COMPILER_OPTION_COMMON_BIT;
+			break;
 
-	case SPVC_BACKEND_GLSL:
-		opt->backend_flags |= SPVC_COMPILER_OPTION_GLSL_BIT | SPVC_COMPILER_OPTION_COMMON_BIT;
-		break;
+		case SPVC_BACKEND_HLSL:
+			opt->backend_flags |= SPVC_COMPILER_OPTION_HLSL_BIT | SPVC_COMPILER_OPTION_COMMON_BIT;
+			break;
 
-	default:
-		break;
+		case SPVC_BACKEND_GLSL:
+			opt->backend_flags |= SPVC_COMPILER_OPTION_GLSL_BIT | SPVC_COMPILER_OPTION_COMMON_BIT;
+			break;
+
+		default:
+			break;
+		}
+
+		*options = opt.get();
+		compiler->context->allocations.push_back(std::move(opt));
 	}
-
-	*options = opt.release();
+	SPVC_END_SAFE_SCOPE(compiler->context, SPVC_ERROR_OUT_OF_MEMORY)
 	return SPVC_SUCCESS;
 }
 
@@ -460,11 +454,6 @@ spvc_result spvc_install_compiler_options(spvc_compiler compiler, spvc_compiler_
 	return SPVC_SUCCESS;
 }
 
-void spvc_destroy_compiler_options(spvc_compiler_options options)
-{
-	delete options;
-}
-
 spvc_result spvc_compile(spvc_compiler compiler, const char **source)
 {
 	SPVC_BEGIN_SAFE_SCOPE
@@ -533,45 +522,55 @@ bool spvc_resources_s::copy_resources(const ShaderResources &resources)
 
 spvc_result spvc_create_statically_accessed_shader_resources(spvc_compiler compiler, spvc_resources *resources)
 {
-	auto *res = new (std::nothrow) spvc_resources_s();
-	if (!res)
+	SPVC_BEGIN_SAFE_SCOPE
 	{
-		compiler->context->last_error = "Out of memory.";
-		return SPVC_ERROR_OUT_OF_MEMORY;
+		std::unique_ptr<spvc_resources_s> res(new(std::nothrow) spvc_resources_s);
+		if (!res)
+		{
+			compiler->context->last_error = "Out of memory.";
+			return SPVC_ERROR_OUT_OF_MEMORY;
+		}
+
+		res->context = compiler->context;
+		auto active = compiler->compiler->get_active_interface_variables();
+		auto accessed_resources = compiler->compiler->get_shader_resources(active);
+
+		if (!res->copy_resources(accessed_resources))
+		{
+			res->context->last_error = "Out of memory.";
+			return SPVC_ERROR_OUT_OF_MEMORY;
+		}
+		*resources = res.get();
+		compiler->context->allocations.push_back(std::move(res));
 	}
-
-	res->context = compiler->context;
-	auto active = compiler->compiler->get_active_interface_variables();
-	auto accessed_resources = compiler->compiler->get_shader_resources(active);
-
-	if (!res->copy_resources(accessed_resources))
-	{
-		res->context->last_error = "Out of memory.";
-		delete res;
-		return SPVC_ERROR_OUT_OF_MEMORY;
-	}
-
-	*resources = res;
+	SPVC_END_SAFE_SCOPE(compiler->context, SPVC_ERROR_OUT_OF_MEMORY)
 	return SPVC_SUCCESS;
 }
 
 spvc_result spvc_create_shader_resources(spvc_compiler compiler, spvc_resources *resources)
 {
-	auto *res = new (std::nothrow) spvc_resources_s();
-	if (!res)
-		return SPVC_ERROR_OUT_OF_MEMORY;
-
-	res->context = compiler->context;
-	auto accessed_resources = compiler->compiler->get_shader_resources();
-
-	if (!res->copy_resources(accessed_resources))
+	SPVC_BEGIN_SAFE_SCOPE
 	{
-		res->context->last_error = "Out of memory.";
-		delete res;
-		return SPVC_ERROR_OUT_OF_MEMORY;
-	}
+		std::unique_ptr<spvc_resources_s> res(new(std::nothrow) spvc_resources_s);
+		if (!res)
+		{
+			compiler->context->last_error = "Out of memory.";
+			return SPVC_ERROR_OUT_OF_MEMORY;
+		}
 
-	*resources = res;
+		res->context = compiler->context;
+		auto accessed_resources = compiler->compiler->get_shader_resources();
+
+		if (!res->copy_resources(accessed_resources))
+		{
+			res->context->last_error = "Out of memory.";
+			return SPVC_ERROR_OUT_OF_MEMORY;
+		}
+
+		*resources = res.get();
+		compiler->context->allocations.push_back(std::move(res));
+	}
+	SPVC_END_SAFE_SCOPE(compiler->context, SPVC_ERROR_OUT_OF_MEMORY)
 	return SPVC_SUCCESS;
 }
 
@@ -639,11 +638,6 @@ spvc_result spvc_get_resource_list(spvc_resources resources, spvc_resource_type 
 	*resource_size = list->size();
 	*resource_list = list->data();
 	return SPVC_SUCCESS;
-}
-
-void spvc_destroy_shader_resources(spvc_resources resources)
-{
-	delete resources;
 }
 
 void spvc_set_decoration(spvc_compiler compiler, SpvId id, SpvDecoration decoration, unsigned argument)

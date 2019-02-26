@@ -68,10 +68,12 @@ struct spvc_combined_image_sampler
 
 struct spvc_specialization_constant
 {
-	spvc_variable_id id;
-	spvc_variable_id constant_id;
+	spvc_constant_id id;
+	unsigned constant_id;
 };
 
+// Be compatible with non-C99 compilers, which do not have stdbool.
+// Only recent MSVC supports this, and ideally SPIRV-Cross should be linkable from a wide range of compilers.
 typedef int spvc_bool;
 #define SPVC_TRUE ((spvc_bool)1)
 #define SPVC_FALSE ((spvc_bool)0)
@@ -102,7 +104,7 @@ typedef enum spvc_capture_mode
 	SPVC_CAPTURE_MODE_COPY = 0,
 
 	// The payload will now be owned by the compiler.
-	// parsed_ir should now be considered a dead blob, and the only thing to do is to destroy it.
+	// parsed_ir should now be considered a dead blob and must not be used further.
 	// This is optimal for performance.
 	SPVC_CAPTURE_MODE_TAKE_OWNERSHIP = 1,
 
@@ -223,19 +225,17 @@ typedef enum spvc_compiler_option
 // Context is the highest-level API construct.
 SPVC_PUBLIC_API spvc_result spvc_create_context(spvc_context *context);
 SPVC_PUBLIC_API spvc_result spvc_destroy_context(spvc_context context);
-SPVC_PUBLIC_API void spvc_context_release_temporary_allocations(spvc_context context);
+SPVC_PUBLIC_API void spvc_context_release_allocations(spvc_context context);
 SPVC_PUBLIC_API const char *spvc_get_last_error_string(spvc_context context);
 
 // SPIR-V parsing interface.
 SPVC_PUBLIC_API spvc_result spvc_parse_spirv(spvc_context context, const SpvId *spirv, size_t word_count,
-                                            spvc_parsed_ir *parsed_ir);
-SPVC_PUBLIC_API void spvc_destroy_parsed_ir(spvc_parsed_ir parsed_ir);
+                                             spvc_parsed_ir *parsed_ir);
 
 // Create a compiler backend
 SPVC_PUBLIC_API spvc_result spvc_create_compiler(spvc_context context, spvc_backend backend,
-                                                spvc_parsed_ir parsed_ir, spvc_capture_mode mode,
-                                                spvc_compiler *compiler);
-SPVC_PUBLIC_API void spvc_destroy_compiler(spvc_compiler compiler);
+                                                 spvc_parsed_ir parsed_ir, spvc_capture_mode mode,
+                                                 spvc_compiler *compiler);
 SPVC_PUBLIC_API unsigned spvc_get_current_id_bound(spvc_compiler compiler);
 
 // Set options.
@@ -245,7 +245,6 @@ SPVC_PUBLIC_API spvc_result spvc_set_compiler_option_bool(spvc_compiler_options 
 SPVC_PUBLIC_API spvc_result spvc_set_compiler_option_uint(spvc_compiler_options options,
                                                          spvc_compiler_option option, unsigned value);
 SPVC_PUBLIC_API spvc_result spvc_install_compiler_options(spvc_compiler compiler, spvc_compiler_options options);
-SPVC_PUBLIC_API void spvc_destroy_compiler_options(spvc_compiler_options options);
 
 // Compile IR into a string.
 SPVC_PUBLIC_API spvc_result spvc_compile(spvc_compiler compiler, const char **source);
@@ -254,9 +253,8 @@ SPVC_PUBLIC_API spvc_result spvc_compile(spvc_compiler compiler, const char **so
 SPVC_PUBLIC_API spvc_result spvc_create_statically_accessed_shader_resources(spvc_compiler compiler, spvc_resources *resources);
 SPVC_PUBLIC_API spvc_result spvc_create_shader_resources(spvc_compiler compiler, spvc_resources *resources);
 SPVC_PUBLIC_API spvc_result spvc_get_resource_list(spvc_resources resources, spvc_resource_type type,
-                                                  const struct spvc_reflected_resource **resource_list,
-                                                  size_t *resource_size);
-SPVC_PUBLIC_API void spvc_destroy_shader_resources(spvc_resources resources);
+                                                   const struct spvc_reflected_resource **resource_list,
+                                                   size_t *resource_size);
 
 // Decorations.
 SPVC_PUBLIC_API void spvc_set_decoration(spvc_compiler compiler, SpvId id, SpvDecoration decoration, unsigned argument);
@@ -339,7 +337,7 @@ SPVC_PUBLIC_API spvc_result spvc_get_specialization_constants(spvc_compiler comp
                                                              const struct spvc_specialization_constant **constants,
                                                              size_t *num_constants);
 SPVC_PUBLIC_API spvc_constant spvc_get_constant_handle(spvc_compiler compiler,
-                                                       spvc_variable_id id);
+                                                       spvc_constant_id id);
 
 // Misc reflection
 SPVC_PUBLIC_API spvc_bool spvc_get_binary_offset_for_decoration(spvc_compiler compiler,
