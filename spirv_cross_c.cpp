@@ -991,6 +991,24 @@ spvc_constant spvc_get_constant_handle(spvc_compiler compiler,
 	SPVC_END_SAFE_SCOPE(compiler->context, nullptr)
 }
 
+spvc_constant_id spvc_get_work_group_size_specialization_constants(spvc_compiler compiler,
+                                                                   spvc_specialization_constant *x,
+                                                                   spvc_specialization_constant *y,
+                                                                   spvc_specialization_constant *z)
+{
+	SpecializationConstant tmpx = {};
+	SpecializationConstant tmpy = {};
+	SpecializationConstant tmpz = {};
+	spvc_constant_id ret = compiler->compiler->get_work_group_size_specialization_constants(tmpx, tmpy, tmpz);
+	x->id = tmpx.id;
+	x->constant_id = tmpx.constant_id;
+	y->id = tmpy.id;
+	y->constant_id = tmpy.constant_id;
+	z->id = tmpz.id;
+	z->constant_id = tmpz.constant_id;
+	return ret;
+}
+
 spvc_bool spvc_get_binary_offset_for_decoration(spvc_compiler compiler,
                                                 spvc_variable_id id,
                                                 SpvDecoration decoration,

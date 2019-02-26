@@ -339,6 +339,24 @@ SPVC_PUBLIC_API spvc_result spvc_get_specialization_constants(spvc_compiler comp
 SPVC_PUBLIC_API spvc_constant spvc_get_constant_handle(spvc_compiler compiler,
                                                        spvc_constant_id id);
 
+SPVC_PUBLIC_API spvc_constant_id spvc_get_work_group_size_specialization_constants(spvc_compiler compiler,
+                                                                                   spvc_specialization_constant *x,
+                                                                                   spvc_specialization_constant *y,
+                                                                                   spvc_specialization_constant *z);
+
+// No stdint.h until C99, sigh :(
+SPVC_PUBLIC_API float spvc_constant_get_scalar_fp16(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API float spvc_constant_get_scalar_fp32(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API double spvc_constant_get_scalar_fp64(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API unsigned spvc_constant_get_scalar_u32(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API int spvc_constant_get_scalar_i32(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API unsigned spvc_constant_get_scalar_u16(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API int spvc_constant_get_scalar_i16(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API unsigned spvc_constant_get_scalar_u8(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API int spvc_constant_get_scalar_i8(spvc_constant constant, unsigned column, unsigned row);
+SPVC_PUBLIC_API void spvc_constant_get_subconstants(spvc_constant constant, const spvc_constant_id **constituents, size_t *count);
+SPVC_PUBLIC_API spvc_type_id spvc_constant_get_type(spvc_constant constant);
+
 // Misc reflection
 SPVC_PUBLIC_API spvc_bool spvc_get_binary_offset_for_decoration(spvc_compiler compiler,
                                                                 spvc_variable_id id,

@@ -59,7 +59,7 @@ report_and_abort(const std::string &msg)
 class CompilerError : public std::runtime_error
 {
 public:
-	CompilerError(const std::string &str)
+	explicit CompilerError(const std::string &str)
 	    : std::runtime_error(str)
 	{
 	}
@@ -338,7 +338,8 @@ struct SPIRUndef : IVariant
 	{
 		type = TypeUndef
 	};
-	SPIRUndef(uint32_t basetype_)
+
+	explicit SPIRUndef(uint32_t basetype_)
 	    : basetype(basetype_)
 	{
 	}
@@ -490,7 +491,7 @@ struct SPIRExtension : IVariant
 		SPV_AMD_gcn_shader
 	};
 
-	SPIRExtension(Extension ext_)
+	explicit SPIRExtension(Extension ext_)
 	    : ext(ext_)
 	{
 	}
@@ -525,7 +526,7 @@ struct SPIREntryPoint
 	} workgroup_size;
 	uint32_t invocations = 0;
 	uint32_t output_vertices = 0;
-	spv::ExecutionModel model;
+	spv::ExecutionModel model = spv::ExecutionModelMax;
 };
 
 struct SPIRExpression : IVariant
@@ -585,7 +586,7 @@ struct SPIRFunctionPrototype : IVariant
 		type = TypeFunctionPrototype
 	};
 
-	SPIRFunctionPrototype(uint32_t return_type_)
+	explicit SPIRFunctionPrototype(uint32_t return_type_)
 	    : return_type(return_type_)
 	{
 	}
@@ -836,7 +837,7 @@ struct SPIRAccessChain : IVariant
 	                int32_t static_index_)
 	    : basetype(basetype_)
 	    , storage(storage_)
-	    , base(base_)
+	    , base(std::move(base_))
 	    , dynamic_index(std::move(dynamic_index_))
 	    , static_index(static_index_)
 	{
@@ -1194,7 +1195,7 @@ struct SPIRConstant : IVariant
 		}
 	}
 
-	uint32_t constant_type;
+	uint32_t constant_type = 0;
 	ConstantMatrix m;
 
 	// If this constant is a specialization constant (i.e. created with OpSpecConstant*).
