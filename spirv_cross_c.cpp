@@ -70,6 +70,12 @@ struct TemporaryBuffer : ScratchMemoryAllocation
 	std::vector<T> buffer;
 };
 
+template<typename T, typename... Ts>
+static inline std::unique_ptr<T> spvc_allocate(Ts&&... ts)
+{
+	return std::unique_ptr<T>(new T(std::forward<Ts>(ts)...));
+}
+
 struct spvc_context_s
 {
 	string last_error;
@@ -81,7 +87,7 @@ const char *spvc_context_s::allocate_name(const std::string &name)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
-		auto alloc = unique_ptr<StringAllocation>(new StringAllocation(name));
+		auto alloc = spvc_allocate<StringAllocation>(name);
 		auto *ret = alloc->str.c_str();
 		allocations.emplace_back(std::move(alloc));
 		return ret;
@@ -150,7 +156,12 @@ spvc_result spvc_create_context(spvc_context *context)
 	return SPVC_SUCCESS;
 }
 
-void spvc_context_release_temporary_allocations(spvc_context context)
+void spvc_destroy_context(spvc_context context)
+{
+	delete context;
+}
+
+void spvc_context_release_allocations(spvc_context context)
 {
 	context->allocations.clear();
 }
@@ -181,8 +192,8 @@ spvc_result spvc_parse_spirv(spvc_context context, const SpvId *spirv, size_t wo
 }
 
 spvc_result spvc_create_compiler(spvc_context context, spvc_backend backend,
-                                spvc_parsed_ir parsed_ir, spvc_capture_mode mode,
-                                spvc_compiler *compiler)
+                                 spvc_parsed_ir parsed_ir, spvc_capture_mode mode,
+                                 spvc_compiler *compiler)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
@@ -421,6 +432,10 @@ spvc_result spvc_set_compiler_option_uint(spvc_compiler_options options,
 		options->msl.pad_fragment_output_components = value != 0;
 		break;
 
+	case SPVC_COMPILER_OPTION_MSL_TESS_DOMAIN_ORIGIN_LOWER_LEFT:
+		options->msl.tess_domain_origin_lower_left = value != 0;
+		break;
+
 	case SPVC_COMPILER_OPTION_MSL_PLATFORM:
 		options->msl.platform = static_cast<CompilerMSL::Options::Platform>(value);
 		break;
@@ -451,6 +466,223 @@ spvc_result spvc_install_compiler_options(spvc_compiler compiler, spvc_compiler_
 		break;
 	}
 
+	return SPVC_SUCCESS;
+}
+
+spvc_result spvc_compiler_add_head_line(spvc_compiler compiler, const char *line)
+{
+	if (compiler->backend == SPVC_BACKEND_NONE)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	static_cast<CompilerGLSL *>(compiler->compiler.get())->add_header_line(line);
+	return SPVC_SUCCESS;
+}
+
+spvc_result spvc_compiler_require_extension(spvc_compiler compiler, const char *line)
+{
+	if (compiler->backend == SPVC_BACKEND_NONE)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	static_cast<CompilerGLSL *>(compiler->compiler.get())->require_extension(line);
+	return SPVC_SUCCESS;
+}
+
+spvc_result spvc_compiler_flatten_buffer_block(spvc_compiler compiler, spvc_variable_id id)
+{
+	if (compiler->backend == SPVC_BACKEND_NONE)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	static_cast<CompilerGLSL *>(compiler->compiler.get())->flatten_buffer_block(id);
+	return SPVC_SUCCESS;
+}
+
+spvc_result spvc_compiler_hlsl_set_root_constants_layout(spvc_compiler compiler,
+                                                         const struct spvc_hlsl_root_constants *constant_info,
+                                                         size_t count)
+{
+	if (compiler->backend != SPVC_BACKEND_HLSL)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	auto &hlsl = *static_cast<CompilerHLSL *>(compiler->compiler.get());
+	std::vector<RootConstants> roots;
+	roots.reserve(count);
+	for (size_t i = 0; i < count; i++)
+	{
+		RootConstants root;
+		root.binding = constant_info[i].binding;
+		root.space = constant_info[i].space;
+		root.start = constant_info[i].start;
+		root.end = constant_info[i].end;
+		roots.push_back(root);
+	}
+
+	hlsl.set_root_constant_layouts(std::move(roots));
+	return SPVC_SUCCESS;
+}
+
+spvc_result spvc_compiler_hlsl_add_vertex_attribute_remap(spvc_compiler compiler,
+                                                          const struct spvc_hlsl_vertex_attribute_remap *remap,
+                                                          size_t count)
+{
+	if (compiler->backend != SPVC_BACKEND_HLSL)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	HLSLVertexAttributeRemap re;
+	auto &hlsl = *static_cast<CompilerHLSL *>(compiler->compiler.get());
+	for (size_t i = 0; i < count; i++)
+	{
+		re.location = remap[i].location;
+		re.semantic = remap[i].semantic;
+		hlsl.add_vertex_attribute_remap(re);
+	}
+
+	return SPVC_SUCCESS;
+}
+
+spvc_variable_id spvc_compiler_hlsl_remap_num_workgroups_builtin(spvc_compiler compiler)
+{
+	if (compiler->backend != SPVC_BACKEND_HLSL)
+		return 0;
+	auto &hlsl = *static_cast<CompilerHLSL *>(compiler->compiler.get());
+	return hlsl.remap_num_workgroups_builtin();
+}
+
+spvc_bool spvc_compiler_msl_is_rasterization_disabled(spvc_compiler compiler)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_FALSE;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	return msl.get_is_rasterization_disabled() ? SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_bool spvc_compiler_msl_needs_aux_buffer(spvc_compiler compiler)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_FALSE;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	return msl.needs_aux_buffer() ? SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_bool spvc_compiler_msl_needs_output_buffer(spvc_compiler compiler)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_FALSE;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	return msl.needs_output_buffer() ? SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_bool spvc_compiler_msl_needs_patch_output_buffer(spvc_compiler compiler)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_FALSE;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	return msl.needs_patch_output_buffer() ? SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_bool spvc_compiler_msl_needs_input_threadgroup_mem(spvc_compiler compiler)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_FALSE;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	return msl.needs_input_threadgroup_mem() ? SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_result spvc_compiler_msl_add_vertex_attribute(spvc_compiler compiler,
+                                                   const struct spvc_msl_vertex_attribute *va)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	MSLVertexAttr attr;
+	attr.location = va->location;
+	attr.msl_buffer = va->msl_buffer;
+	attr.msl_offset = va->msl_offset;
+	attr.msl_stride = va->msl_stride;
+	attr.format = static_cast<MSLVertexFormat>(va->format);
+	attr.builtin = static_cast<spv::BuiltIn>(va->builtin);
+	attr.per_instance = va->per_instance;
+	msl.add_msl_vertex_attribute(attr);
+	return SPVC_SUCCESS;
+}
+
+spvc_result spvc_compiler_msl_add_resource_binding(spvc_compiler compiler,
+                                                   const struct spvc_msl_resource_binding *binding)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	MSLResourceBinding bind;
+	bind.binding = binding->binding;
+	bind.desc_set = binding->desc_set;
+	bind.stage = static_cast<spv::ExecutionModel>(binding->stage);
+	bind.msl_resource_index = binding->msl_resource_index;
+	msl.add_msl_resource_binding(bind);
+	return SPVC_SUCCESS;
+}
+
+spvc_bool spvc_compiler_msl_is_vertex_attribute_used(spvc_compiler compiler, unsigned location)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_FALSE;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	return msl.is_msl_vertex_attribute_used(location) ? SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_bool spvc_compiler_msl_is_resource_used(spvc_compiler compiler,
+                                             SpvExecutionModel model,
+                                             unsigned set,
+                                             unsigned binding)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_FALSE;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	return msl.is_msl_resource_binding_used(static_cast<spv::ExecutionModel>(model), set, binding) ? SPVC_TRUE : SPVC_FALSE;
+}
+
+spvc_result spvc_compiler_msl_remap_constexpr_sampler(spvc_compiler compiler, spvc_variable_id id, const struct spvc_msl_constexpr_sampler *sampler)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	MSLConstexprSampler samp;
+	samp.s_address = static_cast<MSLSamplerAddress>(sampler->s_address);
+	samp.t_address = static_cast<MSLSamplerAddress>(sampler->t_address);
+	samp.r_address = static_cast<MSLSamplerAddress>(sampler->r_address);
+	samp.lod_clamp_min = sampler->lod_clamp_min;
+	samp.lod_clamp_max = sampler->lod_clamp_max;
+	samp.lod_clamp_enable = sampler->lod_clamp_enable;
+	samp.min_filter = static_cast<MSLSamplerFilter>(sampler->min_filter);
+	samp.mag_filter = static_cast<MSLSamplerFilter>(sampler->mag_filter);
+	samp.mip_filter = static_cast<MSLSamplerMipFilter>(sampler->mip_filter);
+	samp.compare_enable = sampler->compare_enable;
+	samp.anisotropy_enable = sampler->anisotropy_enable;
+	samp.max_anisotropy = sampler->max_anisotropy;
+	samp.compare_func = static_cast<MSLSamplerCompareFunc>(sampler->compare_func);
+	samp.coord = static_cast<MSLSamplerCoord>(sampler->coord);
+	samp.border_color = static_cast<MSLSamplerBorderColor>(sampler->border_color);
+	msl.remap_constexpr_sampler(id, samp);
+	return SPVC_SUCCESS;
+}
+
+spvc_result spvc_compiler_msl_set_fragment_output_components(spvc_compiler compiler,
+                                                             unsigned location,
+                                                             unsigned components)
+{
+	if (compiler->backend != SPVC_BACKEND_MSL)
+		return SPVC_ERROR_INVALID_ARGUMENT;
+
+	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
+	msl.set_fragment_output_components(location, components);
 	return SPVC_SUCCESS;
 }
 
@@ -682,12 +914,12 @@ void spvc_unset_member_decoration(spvc_compiler compiler, spvc_type_id id, unsig
 
 spvc_bool spvc_has_decoration(spvc_compiler compiler, SpvId id, SpvDecoration decoration)
 {
-	return compiler->compiler->has_decoration(id, static_cast<spv::Decoration>(decoration));
+	return compiler->compiler->has_decoration(id, static_cast<spv::Decoration>(decoration)) ? SPVC_TRUE : SPVC_FALSE;
 }
 
 spvc_bool spvc_has_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index, SpvDecoration decoration)
 {
-	return compiler->compiler->has_member_decoration(id, member_index, static_cast<spv::Decoration>(decoration));
+	return compiler->compiler->has_member_decoration(id, member_index, static_cast<spv::Decoration>(decoration)) ? SPVC_TRUE : SPVC_FALSE;
 }
 
 const char *spvc_get_name(spvc_compiler compiler, SpvId id)
@@ -737,7 +969,7 @@ spvc_result spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entr
 			translated.push_back(new_entry);
 		}
 
-		auto ptr = std::unique_ptr<TemporaryBuffer<spvc_entry_point>>(new TemporaryBuffer<spvc_entry_point>());
+		auto ptr = spvc_allocate<TemporaryBuffer<spvc_entry_point>>();
 		ptr->buffer = std::move(translated);
 		*entry_points = ptr->buffer.data();
 		*num_entry_points = ptr->buffer.size();
@@ -751,6 +983,75 @@ spvc_result spvc_set_entry_point(spvc_compiler compiler, const char *name, SpvEx
 {
 	compiler->compiler->set_entry_point(name, static_cast<spv::ExecutionModel>(model));
 	return SPVC_SUCCESS;
+}
+
+spvc_result spvc_rename_entry_point(spvc_compiler compiler, const char *old_name, const char *new_name, SpvExecutionModel model)
+{
+	SPVC_BEGIN_SAFE_SCOPE
+	{
+		compiler->compiler->rename_entry_point(old_name, new_name, static_cast<spv::ExecutionModel>(model));
+	}
+	SPVC_END_SAFE_SCOPE(compiler->context, SPVC_ERROR_INVALID_ARGUMENT)
+	return SPVC_SUCCESS;
+}
+
+const char *spvc_get_cleansed_entry_point_name(spvc_compiler compiler, const char *name, SpvExecutionModel model)
+{
+	SPVC_BEGIN_SAFE_SCOPE
+	{
+		auto cleansed_name = compiler->compiler->get_cleansed_entry_point_name(name, static_cast<spv::ExecutionModel>(model));
+		return compiler->context->allocate_name(cleansed_name);
+	}
+	SPVC_END_SAFE_SCOPE(compiler->context, nullptr)
+}
+
+void spvc_set_execution_mode(spvc_compiler compiler, SpvExecutionMode mode)
+{
+	compiler->compiler->set_execution_mode(static_cast<spv::ExecutionMode>(mode));
+}
+
+void spvc_set_execution_mode_with_arguments(spvc_compiler compiler, SpvExecutionMode mode,
+                                            unsigned arg0, unsigned arg1, unsigned arg2)
+{
+	compiler->compiler->set_execution_mode(static_cast<spv::ExecutionMode>(mode), arg0, arg1, arg2);
+}
+
+void spvc_unset_execution_mode(spvc_compiler compiler, SpvExecutionMode mode)
+{
+	compiler->compiler->unset_execution_mode(static_cast<spv::ExecutionMode>(mode));
+}
+
+spvc_result spvc_get_execution_modes(spvc_compiler compiler, const SpvExecutionMode **modes, size_t *num_modes)
+{
+	SPVC_BEGIN_SAFE_SCOPE
+	{
+		auto ptr = spvc_allocate<TemporaryBuffer<SpvExecutionMode>>();
+
+		compiler->compiler->get_execution_mode_bitset().for_each_bit([&](uint32_t bit) {
+			ptr->buffer.push_back(static_cast<SpvExecutionMode>(bit));
+		});
+
+		*modes = ptr->buffer.data();
+		*num_modes = ptr->buffer.size();
+		compiler->context->allocations.push_back(std::move(ptr));
+	}
+	SPVC_END_SAFE_SCOPE(compiler->context, SPVC_ERROR_OUT_OF_MEMORY)
+	return SPVC_SUCCESS;
+}
+
+unsigned spvc_get_execution_mode_argument(spvc_compiler compiler, SpvExecutionMode mode)
+{
+	return compiler->compiler->get_execution_mode_argument(static_cast<spv::ExecutionMode>(mode));
+}
+
+unsigned spvc_get_execution_mode_argument_by_index(spvc_compiler compiler, SpvExecutionMode mode, unsigned index)
+{
+	return compiler->compiler->get_execution_mode_argument(static_cast<spv::ExecutionMode>(mode), index);
+}
+
+SpvExecutionModel spvc_get_execution_model(spvc_compiler compiler)
+{
+	return static_cast<SpvExecutionModel>(compiler->compiler->get_execution_model());
 }
 
 spvc_type spvc_get_type_handle(spvc_compiler compiler, spvc_type_id id)
@@ -830,7 +1131,7 @@ SpvDim spvc_type_get_image_dimension(spvc_type type)
 	return static_cast<SpvDim>(type->image.dim);
 }
 
-spvc_bool spvc_type_get_image_depth(spvc_type type)
+spvc_bool spvc_type_get_image_is_depth(spvc_type type)
 {
 	return type->image.depth ? SPVC_TRUE : SPVC_FALSE;
 }
@@ -944,8 +1245,7 @@ spvc_result spvc_get_combined_image_samplers(spvc_compiler compiler,
 			translated.push_back(trans);
 		}
 
-		auto ptr = std::unique_ptr<TemporaryBuffer<spvc_combined_image_sampler>>(
-				new TemporaryBuffer<spvc_combined_image_sampler>());
+		auto ptr = spvc_allocate<TemporaryBuffer<spvc_combined_image_sampler>>();
 		ptr->buffer = std::move(translated);
 		*samplers = ptr->buffer.data();
 		*num_samplers = ptr->buffer.size();
@@ -970,8 +1270,7 @@ spvc_result spvc_get_specialization_constants(spvc_compiler compiler,
 			translated.push_back(trans);
 		}
 
-		auto ptr = std::unique_ptr<TemporaryBuffer<spvc_specialization_constant>>(
-				new TemporaryBuffer<spvc_specialization_constant>());
+		auto ptr = spvc_allocate<TemporaryBuffer<spvc_specialization_constant>>();
 		ptr->buffer = std::move(translated);
 		*constants = ptr->buffer.data();
 		*num_constants = ptr->buffer.size();
@@ -996,9 +1295,9 @@ spvc_constant_id spvc_get_work_group_size_specialization_constants(spvc_compiler
                                                                    spvc_specialization_constant *y,
                                                                    spvc_specialization_constant *z)
 {
-	SpecializationConstant tmpx = {};
-	SpecializationConstant tmpy = {};
-	SpecializationConstant tmpz = {};
+	SpecializationConstant tmpx;
+	SpecializationConstant tmpy;
+	SpecializationConstant tmpz;
 	spvc_constant_id ret = compiler->compiler->get_work_group_size_specialization_constants(tmpx, tmpy, tmpz);
 	x->id = tmpx.id;
 	x->constant_id = tmpx.constant_id;
@@ -1007,6 +1306,63 @@ spvc_constant_id spvc_get_work_group_size_specialization_constants(spvc_compiler
 	z->id = tmpz.id;
 	z->constant_id = tmpz.constant_id;
 	return ret;
+}
+
+float spvc_constant_get_scalar_fp16(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar_f16(column, row);
+}
+
+float spvc_constant_get_scalar_fp32(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar_f32(column, row);
+}
+
+double spvc_constant_get_scalar_fp64(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar_f64(column, row);
+}
+
+unsigned spvc_constant_get_scalar_u32(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar(column, row);
+}
+
+int spvc_constant_get_scalar_i32(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar_i32(column, row);
+}
+
+unsigned spvc_constant_get_scalar_u16(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar_u16(column, row);
+}
+
+int spvc_constant_get_scalar_i16(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar_i16(column, row);
+}
+
+unsigned spvc_constant_get_scalar_u8(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar_u8(column, row);
+}
+
+int spvc_constant_get_scalar_i8(spvc_constant constant, unsigned column, unsigned row)
+{
+	return constant->scalar_i8(column, row);
+}
+
+void spvc_constant_get_subconstants(spvc_constant constant, const spvc_constant_id **constituents, size_t *count)
+{
+	static_assert(sizeof(spvc_constant_id) == sizeof(constant->subconstants.front()), "ID size is not consistent.");
+	*constituents = reinterpret_cast<spvc_constant_id *>(constant->subconstants.data());
+	*count = constant->subconstants.size();
+}
+
+spvc_type_id spvc_constant_get_type(spvc_constant constant)
+{
+	return constant->constant_type;
 }
 
 spvc_bool spvc_get_binary_offset_for_decoration(spvc_compiler compiler,
@@ -1062,7 +1418,7 @@ spvc_result spvc_get_declared_extensions(spvc_compiler compiler, const char ***e
 		for (auto &ext : exts)
 			duped.push_back(compiler->context->allocate_name(ext));
 
-		std::unique_ptr<TemporaryBuffer<const char *>> ptr(new TemporaryBuffer<const char *>);
+		auto ptr = spvc_allocate<TemporaryBuffer<const char *>>();
 		ptr->buffer = std::move(duped);
 		*extensions = ptr->buffer.data();
 		*num_extensions = ptr->buffer.size();
@@ -1089,7 +1445,7 @@ spvc_result spvc_get_buffer_block_decorations(spvc_compiler compiler, spvc_varia
 	SPVC_BEGIN_SAFE_SCOPE
 	{
 		auto flags = compiler->compiler->get_buffer_block_flags(id);
-		std::unique_ptr<TemporaryBuffer<SpvDecoration>> bitset(new TemporaryBuffer<SpvDecoration>);
+		auto bitset = spvc_allocate<TemporaryBuffer<SpvDecoration>>();
 
 		flags.for_each_bit([&](uint32_t bit) {
 			bitset->buffer.push_back(static_cast<SpvDecoration>(bit));
@@ -1101,6 +1457,58 @@ spvc_result spvc_get_buffer_block_decorations(spvc_compiler compiler, spvc_varia
 	}
 	SPVC_END_SAFE_SCOPE(compiler->context, SPVC_ERROR_INVALID_ARGUMENT)
 	return SPVC_SUCCESS;
+}
+
+unsigned spvc_msl_get_aux_buffer_struct_version(void)
+{
+	return SPVC_MSL_AUX_BUFFER_STRUCT_VERSION;
+}
+
+void spvc_msl_vertex_attribute_defaults(struct spvc_msl_vertex_attribute *attr)
+{
+	// Crude, but works.
+	MSLVertexAttr attr_default;
+	attr->location = attr_default.location;
+	attr->per_instance = attr_default.per_instance ? SPVC_TRUE : SPVC_FALSE;
+	attr->format = static_cast<spvc_msl_vertex_format>(attr_default.format);
+	attr->builtin = static_cast<SpvBuiltIn>(attr_default.builtin);
+	attr->msl_buffer = attr_default.msl_buffer;
+	attr->msl_offset = attr_default.msl_offset;
+	attr->msl_stride = attr_default.msl_stride;
+}
+
+void spvc_msl_resource_binding_defaults(struct spvc_msl_resource_binding *binding)
+{
+	MSLResourceBinding binding_default;
+	binding->desc_set = binding_default.desc_set;
+	binding->binding = binding_default.binding;
+	binding->msl_resource_index = binding_default.msl_resource_index;
+	binding->stage = static_cast<SpvExecutionModel>(binding_default.stage);
+}
+
+void spvc_msl_constexpr_sampler_defaults(struct spvc_msl_constexpr_sampler *sampler)
+{
+	MSLConstexprSampler defaults;
+	sampler->anisotropy_enable = defaults.anisotropy_enable ? SPVC_TRUE : SPVC_FALSE;
+	sampler->border_color = static_cast<spvc_msl_sampler_border_color>(defaults.border_color);
+	sampler->compare_enable = defaults.compare_enable ? SPVC_TRUE : SPVC_FALSE;
+	sampler->coord = static_cast<spvc_msl_sampler_coord>(defaults.coord);
+	sampler->compare_func = static_cast<spvc_msl_sampler_compare_func>(defaults.compare_func);
+	sampler->lod_clamp_enable = defaults.lod_clamp_enable ? SPVC_TRUE : SPVC_FALSE;
+	sampler->lod_clamp_max = defaults.lod_clamp_max;
+	sampler->lod_clamp_min = defaults.lod_clamp_min;
+	sampler->mag_filter = static_cast<spvc_msl_sampler_filter>(defaults.mag_filter);
+	sampler->min_filter = static_cast<spvc_msl_sampler_filter>(defaults.min_filter);
+	sampler->mip_filter = static_cast<spvc_msl_sampler_mip_filter>(defaults.mip_filter);
+	sampler->max_anisotropy = defaults.max_anisotropy;
+	sampler->s_address = static_cast<spvc_msl_sampler_address>(defaults.s_address);
+	sampler->t_address = static_cast<spvc_msl_sampler_address>(defaults.t_address);
+	sampler->r_address = static_cast<spvc_msl_sampler_address>(defaults.r_address);
+}
+
+unsigned spvc_get_current_id_bound(spvc_compiler compiler)
+{
+	return compiler->compiler->get_current_id_bound();
 }
 
 #ifdef _MSC_VER

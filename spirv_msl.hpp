@@ -32,9 +32,10 @@ namespace spirv_cross
 // some other format.
 enum MSLVertexFormat
 {
-	MSL_VERTEX_FORMAT_OTHER,
-	MSL_VERTEX_FORMAT_UINT8,
-	MSL_VERTEX_FORMAT_UINT16
+	MSL_VERTEX_FORMAT_OTHER = 0,
+	MSL_VERTEX_FORMAT_UINT8 = 1,
+	MSL_VERTEX_FORMAT_UINT16 = 2,
+	MSL_VERTEX_FORMAT_INT_MAX = 0x7fffffff
 };
 
 // Defines MSL characteristics of a vertex attribute at a particular location.
@@ -55,7 +56,7 @@ struct MSLVertexAttr
 // descriptor used in a particular shading stage.
 struct MSLResourceBinding
 {
-	spv::ExecutionModel stage;
+	spv::ExecutionModel stage = spv::ExecutionModelMax;
 	uint32_t desc_set = 0;
 	uint32_t binding = 0;
 	uint32_t msl_resource_index = 0;
@@ -63,49 +64,55 @@ struct MSLResourceBinding
 
 enum MSLSamplerCoord
 {
-	MSL_SAMPLER_COORD_NORMALIZED,
-	MSL_SAMPLER_COORD_PIXEL
+	MSL_SAMPLER_COORD_NORMALIZED = 0,
+	MSL_SAMPLER_COORD_PIXEL = 1,
+	MSL_SAMPLER_INT_MAX = 0x7fffffff
 };
 
 enum MSLSamplerFilter
 {
-	MSL_SAMPLER_FILTER_NEAREST,
-	MSL_SAMPLER_FILTER_LINEAR
+	MSL_SAMPLER_FILTER_NEAREST = 0,
+	MSL_SAMPLER_FILTER_LINEAR = 1,
+	MSL_SAMPLER_FILTER_INT_MAX = 0x7fffffff
 };
 
 enum MSLSamplerMipFilter
 {
-	MSL_SAMPLER_MIP_FILTER_NONE,
-	MSL_SAMPLER_MIP_FILTER_NEAREST,
-	MSL_SAMPLER_MIP_FILTER_LINEAR,
+	MSL_SAMPLER_MIP_FILTER_NONE = 0,
+	MSL_SAMPLER_MIP_FILTER_NEAREST = 1,
+	MSL_SAMPLER_MIP_FILTER_LINEAR = 2,
+	MSL_SAMPLER_MIP_FILTER_INT_MAX = 0x7fffffff
 };
 
 enum MSLSamplerAddress
 {
-	MSL_SAMPLER_ADDRESS_CLAMP_TO_ZERO,
-	MSL_SAMPLER_ADDRESS_CLAMP_TO_EDGE,
-	MSL_SAMPLER_ADDRESS_CLAMP_TO_BORDER,
-	MSL_SAMPLER_ADDRESS_REPEAT,
-	MSL_SAMPLER_ADDRESS_MIRRORED_REPEAT
+	MSL_SAMPLER_ADDRESS_CLAMP_TO_ZERO = 0,
+	MSL_SAMPLER_ADDRESS_CLAMP_TO_EDGE = 1,
+	MSL_SAMPLER_ADDRESS_CLAMP_TO_BORDER = 2,
+	MSL_SAMPLER_ADDRESS_REPEAT = 3,
+	MSL_SAMPLER_ADDRESS_MIRRORED_REPEAT = 4,
+	MSL_SAMPLER_ADDRESS_INT_MAX = 0x7fffffff
 };
 
 enum MSLSamplerCompareFunc
 {
-	MSL_SAMPLER_COMPARE_FUNC_NEVER,
-	MSL_SAMPLER_COMPARE_FUNC_LESS,
-	MSL_SAMPLER_COMPARE_FUNC_LESS_EQUAL,
-	MSL_SAMPLER_COMPARE_FUNC_GREATER,
-	MSL_SAMPLER_COMPARE_FUNC_GREATER_EQUAL,
-	MSL_SAMPLER_COMPARE_FUNC_EQUAL,
-	MSL_SAMPLER_COMPARE_FUNC_NOT_EQUAL,
-	MSL_SAMPLER_COMPARE_FUNC_ALWAYS
+	MSL_SAMPLER_COMPARE_FUNC_NEVER = 0,
+	MSL_SAMPLER_COMPARE_FUNC_LESS = 1,
+	MSL_SAMPLER_COMPARE_FUNC_LESS_EQUAL = 2,
+	MSL_SAMPLER_COMPARE_FUNC_GREATER = 3,
+	MSL_SAMPLER_COMPARE_FUNC_GREATER_EQUAL = 4,
+	MSL_SAMPLER_COMPARE_FUNC_EQUAL = 5,
+	MSL_SAMPLER_COMPARE_FUNC_NOT_EQUAL = 6,
+	MSL_SAMPLER_COMPARE_FUNC_ALWAYS = 7,
+	MSL_SAMPLER_COMPARE_FUNC_INT_MAX = 0x7fffffff
 };
 
 enum MSLSamplerBorderColor
 {
-	MSL_SAMPLER_BORDER_COLOR_TRANSPARENT_BLACK,
-	MSL_SAMPLER_BORDER_COLOR_OPAQUE_BLACK,
-	MSL_SAMPLER_BORDER_COLOR_OPAQUE_WHITE
+	MSL_SAMPLER_BORDER_COLOR_TRANSPARENT_BLACK = 0,
+	MSL_SAMPLER_BORDER_COLOR_OPAQUE_BLACK = 1,
+	MSL_SAMPLER_BORDER_COLOR_OPAQUE_WHITE = 2,
+	MSL_SAMPLER_BORDER_COLOR_INT_MAX = 0x7fffffff
 };
 
 struct MSLConstexprSampler
@@ -248,6 +255,44 @@ public:
 		return capture_output_to_buffer && stage_in_var_id != 0;
 	}
 
+	explicit CompilerMSL(std::vector<uint32_t> spirv);
+	CompilerMSL(const uint32_t *ir, size_t word_count);
+	explicit CompilerMSL(const ParsedIR &ir);
+	explicit CompilerMSL(ParsedIR &&ir);
+
+	// p_vtx_attrs is a list of vertex attribute bindings used to match
+	// vertex content locations to MSL attributes. If vertex attributes are provided,
+	// is_msl_vertex_attribute_used() will return true after calling ::compile() if
+	// the location was used by the MSL code.
+	void add_msl_vertex_attribute(const MSLVertexAttr &attr);
+
+	// p_res_bindings is a list of resource bindings to indicate the MSL buffer,
+	// texture or sampler index to use for a particular SPIR-V description set
+	// and binding. If resource bindings are provided,
+	// is_msl_resource_binding_used() will return true after calling ::compile() if
+	// the set/binding combination was used by the MSL code.
+	void add_msl_resource_binding(const MSLResourceBinding &resource);
+
+	// Query after compilation is done. This allows you to check if a location or set/binding combination was used by the shader.
+	bool is_msl_vertex_attribute_used(uint32_t location);
+	bool is_msl_resource_binding_used(spv::ExecutionModel model, uint32_t set, uint32_t binding);
+
+	// Compiles the SPIR-V code into Metal Shading Language.
+	std::string compile() override;
+
+	// Remap a sampler with ID to a constexpr sampler.
+	// Older iOS targets must use constexpr samplers in certain cases (PCF),
+	// so a static sampler must be used.
+	// The sampler will not consume a binding, but be declared in the entry point as a constexpr sampler.
+	// This can be used on both combined image/samplers (sampler2D) or standalone samplers.
+	// The remapped sampler must not be an array of samplers.
+	void remap_constexpr_sampler(uint32_t id, const MSLConstexprSampler &sampler);
+
+	// If using CompilerMSL::Options::pad_fragment_output_components, override the number of components we expect
+	// to use for a particular location. The default is 4 if number of components is not overridden.
+	void set_fragment_output_components(uint32_t location, uint32_t components);
+
+protected:
 	// An enum of SPIR-V functions that are implemented in additional
 	// source code that is added to the shader if necessary.
 	enum SPVFuncImpl
@@ -283,44 +328,6 @@ public:
 		SPVFuncImplArrayCopyMultidimMax = 6
 	};
 
-	explicit CompilerMSL(std::vector<uint32_t> spirv);
-	CompilerMSL(const uint32_t *ir, size_t word_count);
-	explicit CompilerMSL(const ParsedIR &ir);
-	explicit CompilerMSL(ParsedIR &&ir);
-
-	// p_vtx_attrs is a list of vertex attribute bindings used to match
-	// vertex content locations to MSL attributes. If vertex attributes are provided,
-	// is_msl_vertex_attribute_used() will return true after calling ::compile() if
-	// the location was used by the MSL code.
-	void add_msl_vertex_attributes(const MSLVertexAttr *p_vtx_attrs, size_t vtx_attrs_count);
-
-	// p_res_bindings is a list of resource bindings to indicate the MSL buffer,
-	// texture or sampler index to use for a particular SPIR-V description set
-	// and binding. If resource bindings are provided,
-	// is_msl_resource_binding_used() will return true after calling ::compile() if
-	// the set/binding combination was used by the MSL code.
-	void add_msl_resource_bindings(const MSLResourceBinding *p_res_bindings, size_t res_binding_counts);
-
-	// Query after compilation is done. This allows you to check if a location or set/binding combination was used by the shader.
-	bool is_msl_vertex_attribute_used(uint32_t location);
-	bool is_msl_resource_binding_used(spv::ExecutionModel model, uint32_t set, uint32_t binding);
-
-	// Compiles the SPIR-V code into Metal Shading Language.
-	std::string compile() override;
-
-	// Remap a sampler with ID to a constexpr sampler.
-	// Older iOS targets must use constexpr samplers in certain cases (PCF),
-	// so a static sampler must be used.
-	// The sampler will not consume a binding, but be declared in the entry point as a constexpr sampler.
-	// This can be used on both combined image/samplers (sampler2D) or standalone samplers.
-	// The remapped sampler must not be an array of samplers.
-	void remap_constexpr_sampler(uint32_t id, const MSLConstexprSampler &sampler);
-
-	// If using CompilerMSL::Options::pad_fragment_output_components, override the number of components we expect
-	// to use for a particular location. The default is 4 if number of components is not overridden.
-	void set_fragment_output_components(uint32_t location, uint32_t components);
-
-protected:
 	void emit_binary_unord_op(uint32_t result_type, uint32_t result_id, uint32_t op0, uint32_t op1, const char *op);
 	void emit_instruction(const Instruction &instr) override;
 	void emit_glsl_op(uint32_t result_type, uint32_t result_id, uint32_t op, const uint32_t *args,

@@ -72,9 +72,24 @@ struct spvc_specialization_constant
 	unsigned constant_id;
 };
 
+struct spvc_hlsl_root_constants
+{
+	unsigned start;
+	unsigned end;
+	unsigned binding;
+	unsigned space;
+};
+
+struct spvc_hlsl_vertex_attribute_remap
+{
+	unsigned location;
+	const char *semantic;
+};
+
 // Be compatible with non-C99 compilers, which do not have stdbool.
-// Only recent MSVC supports this, and ideally SPIRV-Cross should be linkable from a wide range of compilers.
-typedef int spvc_bool;
+// Only recent MSVC supports this, and ideally SPIRV-Cross should be linkable
+// from a wide range of compilers in its C wrapper.
+typedef unsigned char spvc_bool;
 #define SPVC_TRUE ((spvc_bool)1)
 #define SPVC_FALSE ((spvc_bool)0)
 
@@ -174,12 +189,121 @@ typedef enum spvc_basetype
 
 #define SPVC_MAKE_MSL_VERSION(major, minor, patch) ((major) * 10000 + (minor) * 100 + (patch))
 
-enum spvc_msl_platform
+typedef enum spvc_msl_platform
 {
 	SPVC_MSL_PLATFORM_IOS = 0,
 	SPVC_MSL_PLATFORM_MACOS = 1,
 	SPVC_MSL_PLATFORM_MAX_INT = 0x7fffffff
+} spvc_msl_platform;
+
+typedef enum spvc_msl_vertex_format
+{
+	SPVC_MSL_VERTEX_FORMAT_OTHER = 0,
+	SPVC_MSL_VERTEX_FORMAT_UINT8 = 1,
+	SPVC_MSL_VERTEX_FORMAT_UINT16 = 2
+} spvc_msl_vertex_format;
+
+struct spvc_msl_vertex_attribute
+{
+	unsigned location;
+	unsigned msl_buffer;
+	unsigned msl_offset;
+	unsigned msl_stride;
+	spvc_bool per_instance;
+	spvc_msl_vertex_format format;
+	SpvBuiltIn builtin;
 };
+SPVC_PUBLIC_API void spvc_msl_vertex_attribute_defaults(struct spvc_msl_vertex_attribute *attr);
+
+struct spvc_msl_resource_binding
+{
+	SpvExecutionModel stage;
+	unsigned desc_set;
+	unsigned binding;
+	unsigned msl_resource_index;
+};
+SPVC_PUBLIC_API void spvc_msl_resource_binding_defaults(struct spvc_msl_resource_binding *binding);
+
+#define SPVC_MSL_PUSH_CONSTANT_DESC_SET (~(0u))
+#define SPVC_MSL_PUSH_CONSTANT_BINDING (0)
+#define SPVC_MSL_AUX_BUFFER_STRUCT_VERSION 1
+
+// Runtime check for incompatibility.
+SPVC_PUBLIC_API unsigned spvc_msl_get_aux_buffer_struct_version(void);
+
+typedef enum spvc_msl_sampler_coord
+{
+	SPVC_MSL_SAMPLER_COORD_NORMALIZED = 0,
+	SPVC_MSL_SAMPLER_COORD_PIXEL = 1,
+	SPVC_MSL_SAMPLER_INT_MAX = 0x7fffffff
+} spvc_msl_sampler_coord;
+
+typedef enum spvc_msl_sampler_filter
+{
+	SPVC_MSL_SAMPLER_FILTER_NEAREST = 0,
+	SPVC_MSL_SAMPLER_FILTER_LINEAR = 1,
+	SPVC_MSL_SAMPLER_FILTER_INT_MAX = 0x7fffffff
+} spvc_msl_sampler_filter;
+
+typedef enum spvc_msl_sampler_mip_filter
+{
+	SPVC_MSL_SAMPLER_MIP_FILTER_NONE = 0,
+	SPVC_MSL_SAMPLER_MIP_FILTER_NEAREST = 1,
+	SPVC_MSL_SAMPLER_MIP_FILTER_LINEAR = 2,
+	SPVC_MSL_SAMPLER_MIP_FILTER_INT_MAX = 0x7fffffff
+} spvc_msl_sampler_mip_filter;
+
+typedef enum spvc_msl_sampler_address
+{
+	SPVC_MSL_SAMPLER_ADDRESS_CLAMP_TO_ZERO = 0,
+	SPVC_MSL_SAMPLER_ADDRESS_CLAMP_TO_EDGE = 1,
+	SPVC_MSL_SAMPLER_ADDRESS_CLAMP_TO_BORDER = 2,
+	SPVC_MSL_SAMPLER_ADDRESS_REPEAT = 3,
+	SPVC_MSL_SAMPLER_ADDRESS_MIRRORED_REPEAT = 4,
+	SPVC_MSL_SAMPLER_ADDRESS_INT_MAX = 0x7fffffff
+} spvc_msl_sampler_address;
+
+typedef enum spvc_msl_sampler_compare_func
+{
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_NEVER = 0,
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_LESS = 1,
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_LESS_EQUAL = 2,
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_GREATER = 3,
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_GREATER_EQUAL = 4,
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_EQUAL = 5,
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_NOT_EQUAL = 6,
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_ALWAYS = 7,
+	SPVC_MSL_SAMPLER_COMPARE_FUNC_INT_MAX = 0x7fffffff
+} spvc_msl_sampler_compare_func;
+
+typedef enum spvc_msl_sampler_border_color
+{
+	SPVC_MSL_SAMPLER_BORDER_COLOR_TRANSPARENT_BLACK = 0,
+	SPVC_MSL_SAMPLER_BORDER_COLOR_OPAQUE_BLACK = 1,
+	SPVC_MSL_SAMPLER_BORDER_COLOR_OPAQUE_WHITE = 2,
+	SPVC_MSL_SAMPLER_BORDER_COLOR_INT_MAX = 0x7fffffff
+} spvc_msl_sampler_border_color;
+
+struct spvc_msl_constexpr_sampler
+{
+	spvc_msl_sampler_coord coord;
+	spvc_msl_sampler_filter min_filter;
+	spvc_msl_sampler_filter mag_filter;
+	spvc_msl_sampler_mip_filter mip_filter;
+	spvc_msl_sampler_address s_address;
+	spvc_msl_sampler_address t_address;
+	spvc_msl_sampler_address r_address;
+	spvc_msl_sampler_compare_func compare_func;
+	spvc_msl_sampler_border_color border_color;
+	float lod_clamp_min;
+	float lod_clamp_max;
+	int max_anisotropy;
+
+	spvc_bool compare_enable;
+	spvc_bool lod_clamp_enable;
+	spvc_bool anisotropy_enable;
+};
+SPVC_PUBLIC_API void spvc_msl_constexpr_sampler_defaults(struct spvc_msl_constexpr_sampler *sampler);
 
 typedef enum spvc_compiler_option
 {
@@ -217,14 +341,15 @@ typedef enum spvc_compiler_option
 	SPVC_COMPILER_OPTION_MSL_CAPTURE_OUTPUT_TO_BUFFER = 27 | SPVC_COMPILER_OPTION_MSL_BIT,
 	SPVC_COMPILER_OPTION_MSL_SWIZZLE_TEXTURE_SAMPLES = 28 | SPVC_COMPILER_OPTION_MSL_BIT,
 	SPVC_COMPILER_OPTION_MSL_PAD_FRAGMENT_OUTPUT_COMPONENTS = 29 | SPVC_COMPILER_OPTION_MSL_BIT,
-	SPVC_COMPILER_OPTION_MSL_PLATFORM = 30 | SPVC_COMPILER_OPTION_MSL_BIT,
+	SPVC_COMPILER_OPTION_MSL_TESS_DOMAIN_ORIGIN_LOWER_LEFT = 30 | SPVC_COMPILER_OPTION_MSL_BIT,
+	SPVC_COMPILER_OPTION_MSL_PLATFORM = 31 | SPVC_COMPILER_OPTION_MSL_BIT,
 
 	SPVC_COMPILER_OPTION_INT_MAX = 0x7fffffff
 } spvc_compiler_option;
 
 // Context is the highest-level API construct.
 SPVC_PUBLIC_API spvc_result spvc_create_context(spvc_context *context);
-SPVC_PUBLIC_API spvc_result spvc_destroy_context(spvc_context context);
+SPVC_PUBLIC_API void spvc_destroy_context(spvc_context context);
 SPVC_PUBLIC_API void spvc_context_release_allocations(spvc_context context);
 SPVC_PUBLIC_API const char *spvc_get_last_error_string(spvc_context context);
 
@@ -238,6 +363,7 @@ SPVC_PUBLIC_API spvc_result spvc_create_compiler(spvc_context context, spvc_back
                                                  spvc_compiler *compiler);
 SPVC_PUBLIC_API unsigned spvc_get_current_id_bound(spvc_compiler compiler);
 
+
 // Set options.
 SPVC_PUBLIC_API spvc_result spvc_create_compiler_options(spvc_compiler compiler, spvc_compiler_options *options);
 SPVC_PUBLIC_API spvc_result spvc_set_compiler_option_bool(spvc_compiler_options options,
@@ -248,6 +374,38 @@ SPVC_PUBLIC_API spvc_result spvc_install_compiler_options(spvc_compiler compiler
 
 // Compile IR into a string.
 SPVC_PUBLIC_API spvc_result spvc_compile(spvc_compiler compiler, const char **source);
+
+// Common compiler backend.
+SPVC_PUBLIC_API spvc_result spvc_compiler_add_header_line(spvc_compiler compiler, const char *line);
+SPVC_PUBLIC_API spvc_result spvc_compiler_require_extension(spvc_compiler compiler, const char *ext);
+SPVC_PUBLIC_API spvc_result spvc_compiler_flatten_buffer_block(spvc_compiler compiler, spvc_variable_id id);
+
+// HLSL specifics.
+SPVC_PUBLIC_API spvc_result spvc_compiler_hlsl_set_root_constants_layout(spvc_compiler compiler,
+                                                                         const struct spvc_hlsl_root_constants *constant_info,
+                                                                         size_t count);
+SPVC_PUBLIC_API spvc_result spvc_compiler_hlsl_add_vertex_attribute_remap(spvc_compiler compiler,
+                                                                          const struct spvc_hlsl_vertex_attribute_remap *remap,
+                                                                          size_t remaps);
+SPVC_PUBLIC_API spvc_variable_id spvc_compiler_hlsl_remap_num_workgroups_builtin(spvc_compiler compiler);
+
+// MSL specifics.
+SPVC_PUBLIC_API spvc_bool spvc_compiler_msl_is_rasterization_disabled(spvc_compiler compiler);
+SPVC_PUBLIC_API spvc_bool spvc_compiler_msl_needs_aux_buffer(spvc_compiler compiler);
+SPVC_PUBLIC_API spvc_bool spvc_compiler_msl_needs_output_buffer(spvc_compiler compiler);
+SPVC_PUBLIC_API spvc_bool spvc_compiler_msl_needs_patch_output_buffer(spvc_compiler compiler);
+SPVC_PUBLIC_API spvc_bool spvc_compiler_msl_needs_input_threadgroup_mem(spvc_compiler compiler);
+SPVC_PUBLIC_API spvc_result spvc_compiler_msl_add_vertex_attribute(spvc_compiler compiler,
+                                                                   const struct spvc_msl_vertex_attribute *attrs);
+SPVC_PUBLIC_API spvc_result spvc_compiler_msl_add_resource_binding(spvc_compiler compiler,
+                                                                   const struct spvc_msl_resource_binding *binding);
+SPVC_PUBLIC_API spvc_bool spvc_compiler_msl_is_vertex_attribute_used(spvc_compiler compiler, unsigned location);
+SPVC_PUBLIC_API spvc_bool spvc_compiler_msl_is_resource_used(spvc_compiler compiler,
+                                                             SpvExecutionModel model,
+                                                             unsigned set,
+                                                             unsigned binding);
+SPVC_PUBLIC_API spvc_result spvc_compiler_msl_remap_constexpr_sampler(spvc_compiler compiler, spvc_variable_id id, const struct spvc_msl_constexpr_sampler *sampler);
+SPVC_PUBLIC_API spvc_result spvc_compiler_msl_set_fragment_output_components(spvc_compiler compiler, unsigned location, unsigned components);
 
 // Reflect resources.
 SPVC_PUBLIC_API spvc_result spvc_create_statically_accessed_shader_resources(spvc_compiler compiler, spvc_resources *resources);
@@ -278,8 +436,8 @@ SPVC_PUBLIC_API const char *spvc_get_member_decoration_string(spvc_compiler comp
 // Entry points.
 SPVC_PUBLIC_API spvc_result spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry_point **entry_points, size_t *num_entry_points);
 SPVC_PUBLIC_API spvc_result spvc_set_entry_point(spvc_compiler compiler, const char *name, SpvExecutionModel model);
-SPVC_PUBLIC_API void spvc_rename_entry_point(const char *old_name, const char *new_name, SpvExecutionModel model);
-SPVC_PUBLIC_API const char *spvc_get_cleansed_entry_point_name(const char *name, SpvExecutionModel model);
+SPVC_PUBLIC_API spvc_result spvc_rename_entry_point(spvc_compiler compiler, const char *old_name, const char *new_name, SpvExecutionModel model);
+SPVC_PUBLIC_API const char *spvc_get_cleansed_entry_point_name(spvc_compiler compiler, const char *name, SpvExecutionModel model);
 SPVC_PUBLIC_API void spvc_set_execution_mode(spvc_compiler compiler, SpvExecutionMode mode);
 SPVC_PUBLIC_API void spvc_unset_execution_mode(spvc_compiler compiler, SpvExecutionMode mode);
 SPVC_PUBLIC_API void spvc_set_execution_mode_with_arguments(spvc_compiler compiler, SpvExecutionMode mode,

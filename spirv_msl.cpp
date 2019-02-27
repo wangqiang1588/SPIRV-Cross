@@ -50,22 +50,16 @@ CompilerMSL::CompilerMSL(ParsedIR &&ir_)
 {
 }
 
-void CompilerMSL::add_msl_vertex_attributes(const MSLVertexAttr *p_vtx_attrs, size_t vtx_attrs_count)
+void CompilerMSL::add_msl_vertex_attribute(const MSLVertexAttr &va)
 {
-	for (size_t i = 0; i < vtx_attrs_count; i++)
-	{
-		auto &va = p_vtx_attrs[i];
-		vtx_attrs_by_location[va.location] = va;
-		if (va.builtin != BuiltInMax && !vtx_attrs_by_builtin.count(va.builtin))
-			vtx_attrs_by_builtin[va.builtin] = va;
-	}
+	vtx_attrs_by_location[va.location] = va;
+	if (va.builtin != BuiltInMax && !vtx_attrs_by_builtin.count(va.builtin))
+		vtx_attrs_by_builtin[va.builtin] = va;
 }
 
-void CompilerMSL::add_msl_resource_bindings(const MSLResourceBinding *p_res_bindings,
-                                            size_t res_bindings_count)
+void CompilerMSL::add_msl_resource_binding(const MSLResourceBinding &binding)
 {
-	for (size_t i = 0; i < res_bindings_count; i++)
-		resource_bindings.push_back({ p_res_bindings[i], false });
+	resource_bindings.push_back({ binding, false });
 }
 
 bool CompilerMSL::is_msl_vertex_attribute_used(uint32_t location)
@@ -2113,6 +2107,7 @@ uint32_t CompilerMSL::ensure_correct_attribute_type(uint32_t type_id, uint32_t l
 		ptr_type.parent_type = base_type_id;
 		return ptr_type_id;
 	}
+
 	case MSL_VERTEX_FORMAT_UINT16:
 	{
 		switch (type.basetype)
@@ -2144,6 +2139,7 @@ uint32_t CompilerMSL::ensure_correct_attribute_type(uint32_t type_id, uint32_t l
 		return ptr_type_id;
 	}
 
+	default:
 	case MSL_VERTEX_FORMAT_OTHER:
 		break;
 	}
