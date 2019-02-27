@@ -297,7 +297,6 @@ public:
 	// Resource reflection also depends on the entry point.
 	// By default, the current entry point is set to the first OpEntryPoint which appears in the SPIR-V module.
 
-
 	// Some shader languages restrict the names that can be given to entry points, and the
 	// corresponding backend will automatically rename an entry point name, during the call
 	// to compile() if it is illegal. For example, the common entry point name main() is

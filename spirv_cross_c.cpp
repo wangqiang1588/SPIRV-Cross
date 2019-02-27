@@ -15,18 +15,18 @@
  */
 
 #include "spirv_cross_c.h"
-#include "spirv_glsl.hpp"
-#include "spirv_msl.hpp"
-#include "spirv_hlsl.hpp"
 #include "spirv_cpp.hpp"
-#include "spirv_reflect.hpp"
+#include "spirv_glsl.hpp"
+#include "spirv_hlsl.hpp"
+#include "spirv_msl.hpp"
 #include "spirv_parser.hpp"
-#include <new>
+#include "spirv_reflect.hpp"
 #include <memory>
+#include <new>
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable: 4996)
+#pragma warning(disable : 4996)
 #endif
 
 #ifndef SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS
@@ -36,7 +36,12 @@
 #endif
 
 #ifndef SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS
-#define SPVC_END_SAFE_SCOPE(context, error) catch (const std::exception &e) { (context)->last_error = e.what(); return (error); }
+#define SPVC_END_SAFE_SCOPE(context, error) \
+	catch (const std::exception &e)         \
+	{                                       \
+		(context)->last_error = e.what();   \
+		return (error);                     \
+	}
 #else
 #define SPVC_END_SAFE_SCOPE(context, error)
 #endif
@@ -52,26 +57,26 @@ struct ScratchMemoryAllocation
 struct StringAllocation : ScratchMemoryAllocation
 {
 	explicit StringAllocation(const char *name)
-		: str(name)
+	    : str(name)
 	{
 	}
 
 	explicit StringAllocation(std::string name)
-		: str(std::move(name))
+	    : str(std::move(name))
 	{
 	}
 
 	std::string str;
 };
 
-template<typename T>
+template <typename T>
 struct TemporaryBuffer : ScratchMemoryAllocation
 {
 	std::vector<T> buffer;
 };
 
-template<typename T, typename... Ts>
-static inline std::unique_ptr<T> spvc_allocate(Ts&&... ts)
+template <typename T, typename... Ts>
+static inline std::unique_ptr<T> spvc_allocate(Ts &&... ts)
 {
 	return std::unique_ptr<T>(new T(std::forward<Ts>(ts)...));
 }
@@ -148,7 +153,7 @@ struct spvc_resources_s : ScratchMemoryAllocation
 
 spvc_result spvc_create_context(spvc_context *context)
 {
-	auto *ctx = new(std::nothrow) spvc_context_s;
+	auto *ctx = new (std::nothrow) spvc_context_s;
 	if (!ctx)
 		return SPVC_ERROR_OUT_OF_MEMORY;
 
@@ -171,12 +176,11 @@ const char *spvc_get_last_error_string(spvc_context context)
 	return context->last_error.c_str();
 }
 
-spvc_result spvc_parse_spirv(spvc_context context, const SpvId *spirv, size_t word_count,
-                            spvc_parsed_ir *parsed_ir)
+spvc_result spvc_parse_spirv(spvc_context context, const SpvId *spirv, size_t word_count, spvc_parsed_ir *parsed_ir)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
-		std::unique_ptr<spvc_parsed_ir_s> pir(new(std::nothrow) spvc_parsed_ir_s);
+		std::unique_ptr<spvc_parsed_ir_s> pir(new (std::nothrow) spvc_parsed_ir_s);
 		if (!pir)
 			return SPVC_ERROR_OUT_OF_MEMORY;
 
@@ -191,13 +195,12 @@ spvc_result spvc_parse_spirv(spvc_context context, const SpvId *spirv, size_t wo
 	return SPVC_SUCCESS;
 }
 
-spvc_result spvc_create_compiler(spvc_context context, spvc_backend backend,
-                                 spvc_parsed_ir parsed_ir, spvc_capture_mode mode,
-                                 spvc_compiler *compiler)
+spvc_result spvc_create_compiler(spvc_context context, spvc_backend backend, spvc_parsed_ir parsed_ir,
+                                 spvc_capture_mode mode, spvc_compiler *compiler)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
-		std::unique_ptr<spvc_compiler_s> comp(new(std::nothrow) spvc_compiler_s);
+		std::unique_ptr<spvc_compiler_s> comp(new (std::nothrow) spvc_compiler_s);
 		if (!comp)
 			return SPVC_ERROR_OUT_OF_MEMORY;
 		comp->backend = backend;
@@ -274,7 +277,7 @@ spvc_result spvc_create_compiler_options(spvc_compiler compiler, spvc_compiler_o
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
-		std::unique_ptr<spvc_compiler_options_s> opt(new(std::nothrow) spvc_compiler_options_s);
+		std::unique_ptr<spvc_compiler_options_s> opt(new (std::nothrow) spvc_compiler_options_s);
 		if (!opt)
 			return SPVC_ERROR_OUT_OF_MEMORY;
 
@@ -305,14 +308,12 @@ spvc_result spvc_create_compiler_options(spvc_compiler compiler, spvc_compiler_o
 	return SPVC_SUCCESS;
 }
 
-spvc_result spvc_set_compiler_option_bool(spvc_compiler_options options,
-                                         spvc_compiler_option option, spvc_bool value)
+spvc_result spvc_set_compiler_option_bool(spvc_compiler_options options, spvc_compiler_option option, spvc_bool value)
 {
 	return spvc_set_compiler_option_uint(options, option, value ? 1 : 0);
 }
 
-spvc_result spvc_set_compiler_option_uint(spvc_compiler_options options,
-                                         spvc_compiler_option option, unsigned value)
+spvc_result spvc_set_compiler_option_uint(spvc_compiler_options options, spvc_compiler_option option, unsigned value)
 {
 	uint32_t supported_mask = options->backend_flags;
 	uint32_t required_mask = option & SPVC_COMPILER_OPTION_LANG_BITS;
@@ -353,15 +354,11 @@ spvc_result spvc_set_compiler_option_uint(spvc_compiler_options options,
 		break;
 	case SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_FLOAT_PRECISION_HIGHP:
 		options->glsl.fragment.default_float_precision =
-				value != 0 ?
-				CompilerGLSL::Options::Precision::Highp :
-				CompilerGLSL::Options::Precision::Mediump;
+		    value != 0 ? CompilerGLSL::Options::Precision::Highp : CompilerGLSL::Options::Precision::Mediump;
 		break;
 	case SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_INT_PRECISION_HIGHP:
 		options->glsl.fragment.default_int_precision =
-				value != 0 ?
-				CompilerGLSL::Options::Precision::Highp :
-				CompilerGLSL::Options::Precision::Mediump;
+		    value != 0 ? CompilerGLSL::Options::Precision::Highp : CompilerGLSL::Options::Precision::Mediump;
 		break;
 
 	case SPVC_COMPILER_OPTION_HLSL_SHADER_MODEL:
@@ -592,8 +589,7 @@ spvc_bool spvc_compiler_msl_needs_input_threadgroup_mem(spvc_compiler compiler)
 	return msl.needs_input_threadgroup_mem() ? SPVC_TRUE : SPVC_FALSE;
 }
 
-spvc_result spvc_compiler_msl_add_vertex_attribute(spvc_compiler compiler,
-                                                   const struct spvc_msl_vertex_attribute *va)
+spvc_result spvc_compiler_msl_add_vertex_attribute(spvc_compiler compiler, const struct spvc_msl_vertex_attribute *va)
 {
 	if (compiler->backend != SPVC_BACKEND_MSL)
 		return SPVC_ERROR_INVALID_ARGUMENT;
@@ -636,19 +632,19 @@ spvc_bool spvc_compiler_msl_is_vertex_attribute_used(spvc_compiler compiler, uns
 	return msl.is_msl_vertex_attribute_used(location) ? SPVC_TRUE : SPVC_FALSE;
 }
 
-spvc_bool spvc_compiler_msl_is_resource_used(spvc_compiler compiler,
-                                             SpvExecutionModel model,
-                                             unsigned set,
+spvc_bool spvc_compiler_msl_is_resource_used(spvc_compiler compiler, SpvExecutionModel model, unsigned set,
                                              unsigned binding)
 {
 	if (compiler->backend != SPVC_BACKEND_MSL)
 		return SPVC_FALSE;
 
 	auto &msl = *static_cast<CompilerMSL *>(compiler->compiler.get());
-	return msl.is_msl_resource_binding_used(static_cast<spv::ExecutionModel>(model), set, binding) ? SPVC_TRUE : SPVC_FALSE;
+	return msl.is_msl_resource_binding_used(static_cast<spv::ExecutionModel>(model), set, binding) ? SPVC_TRUE :
+	                                                                                                 SPVC_FALSE;
 }
 
-spvc_result spvc_compiler_msl_remap_constexpr_sampler(spvc_compiler compiler, spvc_variable_id id, const struct spvc_msl_constexpr_sampler *sampler)
+spvc_result spvc_compiler_msl_remap_constexpr_sampler(spvc_compiler compiler, spvc_variable_id id,
+                                                      const struct spvc_msl_constexpr_sampler *sampler)
 {
 	if (compiler->backend != SPVC_BACKEND_MSL)
 		return SPVC_ERROR_INVALID_ARGUMENT;
@@ -674,8 +670,7 @@ spvc_result spvc_compiler_msl_remap_constexpr_sampler(spvc_compiler compiler, sp
 	return SPVC_SUCCESS;
 }
 
-spvc_result spvc_compiler_msl_set_fragment_output_components(spvc_compiler compiler,
-                                                             unsigned location,
+spvc_result spvc_compiler_msl_set_fragment_output_components(spvc_compiler compiler, unsigned location,
                                                              unsigned components)
 {
 	if (compiler->backend != SPVC_BACKEND_MSL)
@@ -756,7 +751,7 @@ spvc_result spvc_create_statically_accessed_shader_resources(spvc_compiler compi
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
-		std::unique_ptr<spvc_resources_s> res(new(std::nothrow) spvc_resources_s);
+		std::unique_ptr<spvc_resources_s> res(new (std::nothrow) spvc_resources_s);
 		if (!res)
 		{
 			compiler->context->last_error = "Out of memory.";
@@ -783,7 +778,7 @@ spvc_result spvc_create_shader_resources(spvc_compiler compiler, spvc_resources 
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
-		std::unique_ptr<spvc_resources_s> res(new(std::nothrow) spvc_resources_s);
+		std::unique_ptr<spvc_resources_s> res(new (std::nothrow) spvc_resources_s);
 		if (!res)
 		{
 			compiler->context->last_error = "Out of memory.";
@@ -807,8 +802,7 @@ spvc_result spvc_create_shader_resources(spvc_compiler compiler, spvc_resources 
 }
 
 spvc_result spvc_get_resource_list(spvc_resources resources, spvc_resource_type type,
-                                  const struct spvc_reflected_resource **resource_list,
-                                  size_t *resource_size)
+                                   const struct spvc_reflected_resource **resource_list, size_t *resource_size)
 {
 	const std::vector<spvc_reflected_resource> *list = nullptr;
 	switch (type)
@@ -887,14 +881,17 @@ void spvc_set_name(spvc_compiler compiler, SpvId id, const char *argument)
 	compiler->compiler->set_name(id, argument);
 }
 
-void spvc_set_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index, SpvDecoration decoration, unsigned argument)
+void spvc_set_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index,
+                                SpvDecoration decoration, unsigned argument)
 {
 	compiler->compiler->set_member_decoration(id, member_index, static_cast<spv::Decoration>(decoration), argument);
 }
 
-void spvc_set_member_decoration_string(spvc_compiler compiler, spvc_type_id id, unsigned member_index, SpvDecoration decoration, const char *argument)
+void spvc_set_member_decoration_string(spvc_compiler compiler, spvc_type_id id, unsigned member_index,
+                                       SpvDecoration decoration, const char *argument)
 {
-	compiler->compiler->set_member_decoration_string(id, member_index, static_cast<spv::Decoration>(decoration), argument);
+	compiler->compiler->set_member_decoration_string(id, member_index, static_cast<spv::Decoration>(decoration),
+	                                                 argument);
 }
 
 void spvc_set_member_name(spvc_compiler compiler, spvc_type_id id, unsigned member_index, const char *argument)
@@ -907,7 +904,8 @@ void spvc_unset_decoration(spvc_compiler compiler, SpvId id, SpvDecoration decor
 	compiler->compiler->unset_decoration(id, static_cast<spv::Decoration>(decoration));
 }
 
-void spvc_unset_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index, SpvDecoration decoration)
+void spvc_unset_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index,
+                                  SpvDecoration decoration)
 {
 	compiler->compiler->unset_member_decoration(id, member_index, static_cast<spv::Decoration>(decoration));
 }
@@ -917,9 +915,12 @@ spvc_bool spvc_has_decoration(spvc_compiler compiler, SpvId id, SpvDecoration de
 	return compiler->compiler->has_decoration(id, static_cast<spv::Decoration>(decoration)) ? SPVC_TRUE : SPVC_FALSE;
 }
 
-spvc_bool spvc_has_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index, SpvDecoration decoration)
+spvc_bool spvc_has_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index,
+                                     SpvDecoration decoration)
 {
-	return compiler->compiler->has_member_decoration(id, member_index, static_cast<spv::Decoration>(decoration)) ? SPVC_TRUE : SPVC_FALSE;
+	return compiler->compiler->has_member_decoration(id, member_index, static_cast<spv::Decoration>(decoration)) ?
+	           SPVC_TRUE :
+	           SPVC_FALSE;
 }
 
 const char *spvc_get_name(spvc_compiler compiler, SpvId id)
@@ -937,18 +938,21 @@ const char *spvc_get_decoration_string(spvc_compiler compiler, SpvId id, SpvDeco
 	return compiler->compiler->get_decoration_string(id, static_cast<spv::Decoration>(decoration)).c_str();
 }
 
-unsigned spvc_get_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index, SpvDecoration decoration)
+unsigned spvc_get_member_decoration(spvc_compiler compiler, spvc_type_id id, unsigned member_index,
+                                    SpvDecoration decoration)
 {
 	return compiler->compiler->get_member_decoration(id, member_index, static_cast<spv::Decoration>(decoration));
 }
 
-const char *spvc_get_member_decoration_string(spvc_compiler compiler, spvc_type_id id,
-                                              unsigned member_index, SpvDecoration decoration)
+const char *spvc_get_member_decoration_string(spvc_compiler compiler, spvc_type_id id, unsigned member_index,
+                                              SpvDecoration decoration)
 {
-	return compiler->compiler->get_member_decoration_string(id, member_index, static_cast<spv::Decoration>(decoration)).c_str();
+	return compiler->compiler->get_member_decoration_string(id, member_index, static_cast<spv::Decoration>(decoration))
+	    .c_str();
 }
 
-spvc_result spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry_point **entry_points, size_t *num_entry_points)
+spvc_result spvc_get_entry_points(spvc_compiler compiler, const struct spvc_entry_point **entry_points,
+                                  size_t *num_entry_points)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
@@ -985,7 +989,8 @@ spvc_result spvc_set_entry_point(spvc_compiler compiler, const char *name, SpvEx
 	return SPVC_SUCCESS;
 }
 
-spvc_result spvc_rename_entry_point(spvc_compiler compiler, const char *old_name, const char *new_name, SpvExecutionModel model)
+spvc_result spvc_rename_entry_point(spvc_compiler compiler, const char *old_name, const char *new_name,
+                                    SpvExecutionModel model)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
@@ -999,7 +1004,8 @@ const char *spvc_get_cleansed_entry_point_name(spvc_compiler compiler, const cha
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
-		auto cleansed_name = compiler->compiler->get_cleansed_entry_point_name(name, static_cast<spv::ExecutionModel>(model));
+		auto cleansed_name =
+		    compiler->compiler->get_cleansed_entry_point_name(name, static_cast<spv::ExecutionModel>(model));
 		return compiler->context->allocate_name(cleansed_name);
 	}
 	SPVC_END_SAFE_SCOPE(compiler->context, nullptr)
@@ -1010,8 +1016,8 @@ void spvc_set_execution_mode(spvc_compiler compiler, SpvExecutionMode mode)
 	compiler->compiler->set_execution_mode(static_cast<spv::ExecutionMode>(mode));
 }
 
-void spvc_set_execution_mode_with_arguments(spvc_compiler compiler, SpvExecutionMode mode,
-                                            unsigned arg0, unsigned arg1, unsigned arg2)
+void spvc_set_execution_mode_with_arguments(spvc_compiler compiler, SpvExecutionMode mode, unsigned arg0, unsigned arg1,
+                                            unsigned arg2)
 {
 	compiler->compiler->set_execution_mode(static_cast<spv::ExecutionMode>(mode), arg0, arg1, arg2);
 }
@@ -1027,9 +1033,8 @@ spvc_result spvc_get_execution_modes(spvc_compiler compiler, const SpvExecutionM
 	{
 		auto ptr = spvc_allocate<TemporaryBuffer<SpvExecutionMode>>();
 
-		compiler->compiler->get_execution_mode_bitset().for_each_bit([&](uint32_t bit) {
-			ptr->buffer.push_back(static_cast<SpvExecutionMode>(bit));
-		});
+		compiler->compiler->get_execution_mode_bitset().for_each_bit(
+		    [&](uint32_t bit) { ptr->buffer.push_back(static_cast<SpvExecutionMode>(bit)); });
 
 		*modes = ptr->buffer.data();
 		*num_modes = ptr->buffer.size();
@@ -1161,17 +1166,13 @@ SpvAccessQualifier spvc_type_get_image_access_qualifier(spvc_type type)
 	return static_cast<SpvAccessQualifier>(static_cast<const SPIRType *>(type)->image.access);
 }
 
-size_t spvc_get_declared_struct_size(spvc_compiler compiler, spvc_type struct_type)
-{
-	SPVC_BEGIN_SAFE_SCOPE
-	{
-		return compiler->compiler->get_declared_struct_size(*static_cast<const SPIRType *>(struct_type));
-	}
-	SPVC_END_SAFE_SCOPE(compiler->context, 0)
+size_t spvc_get_declared_struct_size(spvc_compiler compiler, spvc_type struct_type){ SPVC_BEGIN_SAFE_SCOPE{
+	return compiler->compiler->get_declared_struct_size(*static_cast<const SPIRType *>(struct_type));
+}
+SPVC_END_SAFE_SCOPE(compiler->context, 0)
 }
 
-size_t spvc_get_declared_struct_size_runtime_array(spvc_compiler compiler,
-                                                   spvc_type struct_type, size_t array_size)
+size_t spvc_get_declared_struct_size_runtime_array(spvc_compiler compiler, spvc_type struct_type, size_t array_size)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
@@ -1181,8 +1182,7 @@ size_t spvc_get_declared_struct_size_runtime_array(spvc_compiler compiler,
 	SPVC_END_SAFE_SCOPE(compiler->context, 0)
 }
 
-unsigned spvc_type_struct_member_offset(spvc_compiler compiler,
-                                        spvc_type type, unsigned index)
+unsigned spvc_type_struct_member_offset(spvc_compiler compiler, spvc_type type, unsigned index)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
@@ -1191,8 +1191,7 @@ unsigned spvc_type_struct_member_offset(spvc_compiler compiler,
 	SPVC_END_SAFE_SCOPE(compiler->context, 0)
 }
 
-unsigned spvc_type_struct_member_array_stride(spvc_compiler compiler,
-                                              spvc_type type, unsigned index)
+unsigned spvc_type_struct_member_array_stride(spvc_compiler compiler, spvc_type type, unsigned index)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
@@ -1201,23 +1200,17 @@ unsigned spvc_type_struct_member_array_stride(spvc_compiler compiler,
 	SPVC_END_SAFE_SCOPE(compiler->context, 0)
 }
 
-unsigned spvc_type_struct_member_matrix_stride(spvc_compiler compiler,
-                                               spvc_type type, unsigned index)
-{
-	SPVC_BEGIN_SAFE_SCOPE
-	{
-		return compiler->compiler->type_struct_member_matrix_stride(*static_cast<const SPIRType *>(type), index);
-	}
-	SPVC_END_SAFE_SCOPE(compiler->context, 0)
+unsigned spvc_type_struct_member_matrix_stride(spvc_compiler compiler, spvc_type type,
+                                               unsigned index){ SPVC_BEGIN_SAFE_SCOPE{
+	return compiler->compiler->type_struct_member_matrix_stride(*static_cast<const SPIRType *>(type), index);
+}
+SPVC_END_SAFE_SCOPE(compiler->context, 0)
 }
 
-spvc_variable_id spvc_build_dummy_sampler_for_combined_images(spvc_compiler compiler)
-{
-	SPVC_BEGIN_SAFE_SCOPE
-	{
-		return compiler->compiler->build_dummy_sampler_for_combined_images();
-	}
-	SPVC_END_SAFE_SCOPE(compiler->context, 0)
+spvc_variable_id spvc_build_dummy_sampler_for_combined_images(spvc_compiler compiler){
+	SPVC_BEGIN_SAFE_SCOPE{ return compiler->compiler->build_dummy_sampler_for_combined_images();
+}
+SPVC_END_SAFE_SCOPE(compiler->context, 0)
 }
 
 spvc_result spvc_build_combined_image_samplers(spvc_compiler compiler)
@@ -1231,8 +1224,7 @@ spvc_result spvc_build_combined_image_samplers(spvc_compiler compiler)
 }
 
 spvc_result spvc_get_combined_image_samplers(spvc_compiler compiler,
-                                             const struct spvc_combined_image_sampler **samplers,
-                                             size_t *num_samplers)
+                                             const struct spvc_combined_image_sampler **samplers, size_t *num_samplers)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
@@ -1241,7 +1233,7 @@ spvc_result spvc_get_combined_image_samplers(spvc_compiler compiler,
 		translated.reserve(combined.size());
 		for (auto &c : combined)
 		{
-			spvc_combined_image_sampler trans = {c.combined_id, c.image_id, c.sampler_id};
+			spvc_combined_image_sampler trans = { c.combined_id, c.image_id, c.sampler_id };
 			translated.push_back(trans);
 		}
 
@@ -1266,7 +1258,7 @@ spvc_result spvc_get_specialization_constants(spvc_compiler compiler,
 		translated.reserve(spec_constants.size());
 		for (auto &c : spec_constants)
 		{
-			spvc_specialization_constant trans = {c.id, c.constant_id};
+			spvc_specialization_constant trans = { c.id, c.constant_id };
 			translated.push_back(trans);
 		}
 
@@ -1280,14 +1272,10 @@ spvc_result spvc_get_specialization_constants(spvc_compiler compiler,
 	return SPVC_SUCCESS;
 }
 
-spvc_constant spvc_get_constant_handle(spvc_compiler compiler,
-                                       spvc_variable_id id)
-{
-	SPVC_BEGIN_SAFE_SCOPE
-	{
-		return static_cast<spvc_constant>(&compiler->compiler->get_constant(id));
-	}
-	SPVC_END_SAFE_SCOPE(compiler->context, nullptr)
+spvc_constant spvc_get_constant_handle(spvc_compiler compiler, spvc_variable_id id){
+	SPVC_BEGIN_SAFE_SCOPE{ return static_cast<spvc_constant>(&compiler->compiler->get_constant(id));
+}
+SPVC_END_SAFE_SCOPE(compiler->context, nullptr)
 }
 
 spvc_constant_id spvc_get_work_group_size_specialization_constants(spvc_compiler compiler,
@@ -1365,9 +1353,7 @@ spvc_type_id spvc_constant_get_type(spvc_constant constant)
 	return constant->constant_type;
 }
 
-spvc_bool spvc_get_binary_offset_for_decoration(spvc_compiler compiler,
-                                                spvc_variable_id id,
-                                                SpvDecoration decoration,
+spvc_bool spvc_get_binary_offset_for_decoration(spvc_compiler compiler, spvc_variable_id id, SpvDecoration decoration,
                                                 unsigned *word_offset)
 {
 	uint32_t off = 0;
@@ -1399,7 +1385,8 @@ spvc_bool spvc_buffer_get_hlsl_counter_buffer(spvc_compiler compiler, spvc_varia
 		return SPVC_FALSE;
 }
 
-spvc_result spvc_get_declared_capabilities(spvc_compiler compiler, const SpvCapability **capabilities, size_t *num_capabilities)
+spvc_result spvc_get_declared_capabilities(spvc_compiler compiler, const SpvCapability **capabilities,
+                                           size_t *num_capabilities)
 {
 	auto &caps = compiler->compiler->get_declared_capabilities();
 	static_assert(sizeof(SpvCapability) == sizeof(spv::Capability), "Enum size mismatch.");
@@ -1428,28 +1415,22 @@ spvc_result spvc_get_declared_extensions(spvc_compiler compiler, const char ***e
 	return SPVC_SUCCESS;
 }
 
-const char *spvc_get_remapped_declared_block_name(spvc_compiler compiler, spvc_variable_id id)
-{
-	SPVC_BEGIN_SAFE_SCOPE
-	{
-		auto name = compiler->compiler->get_remapped_declared_block_name(id);
-		return compiler->context->allocate_name(name);
-	}
-	SPVC_END_SAFE_SCOPE(compiler->context, nullptr)
+const char *spvc_get_remapped_declared_block_name(spvc_compiler compiler, spvc_variable_id id){
+	SPVC_BEGIN_SAFE_SCOPE{ auto name = compiler->compiler->get_remapped_declared_block_name(id);
+return compiler->context->allocate_name(name);
+}
+SPVC_END_SAFE_SCOPE(compiler->context, nullptr)
 }
 
 spvc_result spvc_get_buffer_block_decorations(spvc_compiler compiler, spvc_variable_id id,
-                                              const SpvDecoration **decorations,
-                                              size_t *num_decorations)
+                                              const SpvDecoration **decorations, size_t *num_decorations)
 {
 	SPVC_BEGIN_SAFE_SCOPE
 	{
 		auto flags = compiler->compiler->get_buffer_block_flags(id);
 		auto bitset = spvc_allocate<TemporaryBuffer<SpvDecoration>>();
 
-		flags.for_each_bit([&](uint32_t bit) {
-			bitset->buffer.push_back(static_cast<SpvDecoration>(bit));
-		});
+		flags.for_each_bit([&](uint32_t bit) { bitset->buffer.push_back(static_cast<SpvDecoration>(bit)); });
 
 		*decorations = bitset->buffer.data();
 		*num_decorations = bitset->buffer.size();

@@ -69,9 +69,11 @@ bool CompilerMSL::is_msl_vertex_attribute_used(uint32_t location)
 
 bool CompilerMSL::is_msl_resource_binding_used(ExecutionModel model, uint32_t desc_set, uint32_t binding)
 {
-	auto itr = find_if(begin(resource_bindings), end(resource_bindings), [&](const std::pair<MSLResourceBinding, bool> &resource) -> bool {
-		return model == resource.first.stage && desc_set == resource.first.desc_set && binding == resource.first.binding;
-	});
+	auto itr = find_if(begin(resource_bindings), end(resource_bindings),
+	                   [&](const std::pair<MSLResourceBinding, bool> &resource) -> bool {
+		                   return model == resource.first.stage && desc_set == resource.first.desc_set &&
+		                          binding == resource.first.binding;
+	                   });
 	return itr != end(resource_bindings) && itr->second;
 }
 
@@ -1864,7 +1866,8 @@ uint32_t CompilerMSL::add_interface_block(StorageClass storage, bool patch)
 				statement("    ", input_wg_var_name, "[", to_expression(builtin_invocation_id_id), "] = ", ib_var_ref,
 				          ";");
 				statement("threadgroup_barrier(mem_flags::mem_threadgroup);");
-				statement("if (", to_expression(builtin_invocation_id_id), " >= ", get_entry_point().output_vertices, ")");
+				statement("if (", to_expression(builtin_invocation_id_id), " >= ", get_entry_point().output_vertices,
+				          ")");
 				statement("    return;");
 			});
 		}
@@ -5744,9 +5747,11 @@ uint32_t CompilerMSL::get_metal_resource_index(SPIRVariable &var, SPIRType::Base
 	uint32_t var_binding = (var.storage == StorageClassPushConstant) ? kPushConstBinding : var_dec.binding;
 
 	// If a matching binding has been specified, find and use it
-	auto itr = find_if(begin(resource_bindings), end(resource_bindings), [&](const pair<MSLResourceBinding, bool> &resource) -> bool {
-		return var_desc_set == resource.first.desc_set && var_binding == resource.first.binding && execution.model == resource.first.stage;
-	});
+	auto itr = find_if(begin(resource_bindings), end(resource_bindings),
+	                   [&](const pair<MSLResourceBinding, bool> &resource) -> bool {
+		                   return var_desc_set == resource.first.desc_set && var_binding == resource.first.binding &&
+		                          execution.model == resource.first.stage;
+	                   });
 
 	if (itr != end(resource_bindings))
 	{
